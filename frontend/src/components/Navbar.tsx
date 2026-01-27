@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { navItems } from '@/data/mockData';
 import { Wallet, User, Menu, X, Zap } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
 interface NavbarProps {
   isConnected: boolean;
@@ -12,6 +13,7 @@ interface NavbarProps {
 
 export function Navbar({ isConnected, account, onConnect, onDisconnect }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
@@ -27,20 +29,18 @@ export function Navbar({ isConnected, account, onConnect, onDisconnect }: Navbar
             </span>
           </div>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => (
-              <a
+              <Link
                 key={item.name}
-                href={item.href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  item.active
-                    ? 'text-primary bg-primary/10'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                }`}
+                to={item.href}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${location.pathname === item.href
+                  ? 'text-primary bg-primary/10'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
               >
                 {item.name}
-              </a>
+              </Link>
             ))}
           </div>
 
@@ -57,10 +57,12 @@ export function Navbar({ isConnected, account, onConnect, onDisconnect }: Navbar
             {/* Connect/User Button */}
             {isConnected ? (
               <div className="flex items-center gap-2">
-                <Button variant="glass" size="sm" className="gap-2">
-                  <User className="w-4 h-4" />
-                  <span className="hidden sm:inline">{account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'Connected'}</span>
-                </Button>
+                <Link to="/profile">
+                  <Button variant="glass" size="sm" className="gap-2">
+                    <User className="w-4 h-4" />
+                    <span className="hidden sm:inline">{account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connected'}</span>
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="sm" onClick={onDisconnect}>
                   Disconnect
                 </Button>
@@ -88,17 +90,17 @@ export function Navbar({ isConnected, account, onConnect, onDisconnect }: Navbar
         <div className="md:hidden bg-card/95 backdrop-blur-xl border-b border-border animate-fade-in">
           <div className="px-4 py-4 space-y-2">
             {navItems.map((item) => (
-              <a
+              <Link
                 key={item.name}
-                href={item.href}
-                className={`block px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  item.active
-                    ? 'text-primary bg-primary/10'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                }`}
+                to={item.href}
+                className={`block px-4 py-3 rounded-lg text-sm font-medium transition-all ${location.pathname === item.href
+                  ? 'text-primary bg-primary/10'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                onClick={() => setMobileMenuOpen(false)}
               >
                 {item.name}
-              </a>
+              </Link>
             ))}
           </div>
         </div>
