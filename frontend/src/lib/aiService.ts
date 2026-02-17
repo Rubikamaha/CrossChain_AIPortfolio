@@ -5,6 +5,12 @@ export interface AIAnalysis {
     summary: string;
     healthScore: number;
     riskLevel: 'Low' | 'Medium' | 'High';
+    riskFactors: string[];
+    chainOutlook: Array<{
+        chain: string;
+        outlook: 'Great' | 'Good' | 'Neutral' | 'Caution';
+        reason: string;
+    }>;
     analysis: {
         diversification: string;
         performance: string;
@@ -14,6 +20,8 @@ export interface AIAnalysis {
         type: 'Buy' | 'Sell' | 'Hold';
         asset: string;
         reason: string;
+        confidence?: 'Low' | 'Medium' | 'High';
+        timeHorizon?: 'Short Term' | 'Medium Term' | 'Long Term' | 'Immediate';
     }>;
     topPick: {
         asset: string;
@@ -55,6 +63,7 @@ export const aiService = {
             riskPersonality: RiskPersonality,
             learningMode: LearningMode,
             healthScore?: number,
+            insightMode?: string,
             notifications?: {
                 highRiskAlert: boolean;
                 imbalanceAlert: boolean;

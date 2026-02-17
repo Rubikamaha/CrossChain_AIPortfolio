@@ -18,6 +18,28 @@ export interface RPCResponse<T = any> {
     };
 }
 
+export interface TokenBalance {
+    contractAddress: string;
+    tokenBalance: string; // hex string
+    error?: string;
+}
+
+export interface TokenMetadata {
+    decimals: number | null;
+    logo: string | null;
+    name: string | null;
+    symbol: string | null;
+}
+
+export interface Nft {
+    contract: { address: string };
+    id: { tokenId: string };
+    title: string;
+    description: string;
+    metadata?: any;
+    media?: { raw: string; gateway: string }[];
+}
+
 export class RPCError extends Error {
     constructor(
         message: string,
@@ -141,6 +163,49 @@ export async function getSupportedChains(): Promise<any> {
 export function weiToEther(wei: string | bigint): number {
     const weiValue = typeof wei === 'string' ? BigInt(wei) : wei;
     return Number(weiValue) / 1e18;
+}
+
+/**
+ * Get token balances for an address (Alchemy Enhanced API)
+ */
+export async function getTokenBalances(
+    chainId: number,
+    address: string
+): Promise<TokenBalance[]> {
+    const result = await rpcCall<{ address: string; tokenBalances: TokenBalance[] }>(
+        chainId,
+        'alchemy_getTokenBalances',
+        [address]
+    );
+    return result.tokenBalances;
+}
+
+/**
+ * Get token metadata (Alchemy Enhanced API)
+ */
+export async function getTokenMetadata(
+    chainId: number,
+    contractAddress: string
+): Promise<TokenMetadata> {
+    return rpcCall<TokenMetadata>(
+        chainId,
+        'alchemy_getTokenMetadata',
+        [contractAddress]
+    );
+}
+
+/**
+ * Get NFTs for an address (Alchemy Enhanced API)
+ */
+export async function getNfts(
+    chainId: number,
+    address: string
+): Promise<{ ownedNfts: Nft[]; totalCount: number }> {
+    return rpcCall<{ ownedNfts: Nft[]; totalCount: number }>(
+        chainId,
+        'alchemy_getNfts',
+        [{ owner: address }]
+    );
 }
 
 /**

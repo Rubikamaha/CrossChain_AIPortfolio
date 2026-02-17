@@ -1,6 +1,16 @@
 // Wallet service for fetching multi-chain balances
-import { getBalance, weiToEther, BACKEND_URL } from './rpcService';
+import { getBalance, weiToEther, BACKEND_URL, getTokenBalances, getTokenMetadata, getNfts, type TokenBalance } from './rpcService';
 import { getChainConfig, type ChainConfig } from './chainConfig';
+
+export interface ChainAsset {
+    symbol: string;
+    balance: number;
+    valueUsd: number;
+    name?: string;
+    logo?: string;
+    isToken?: boolean;
+    contractAddress?: string;
+}
 
 export interface ChainBalance {
     chainId: number;
@@ -9,14 +19,102 @@ export interface ChainBalance {
     balance: string; // in wei
     balanceFormatted: number; // in ether
     usdValue?: number;
+    tokenValue?: number; // Value of ERC20 tokens
+    nftValue?: number; // Estimated NFT value
+    nftCount?: number;
+    assets: ChainAsset[]; // List of all assets on this chain
     error?: string;
 }
 
 export interface PortfolioData {
     totalValue: number;
+    totalTokenValue: number;
+    totalNftValue: number; // Placeholder for now, mostly count based
+    totalNftCount: number;
     balances: ChainBalance[];
     connectedChains: number;
     lastUpdated: Date;
+}
+
+/**
+ * Fetch tokens for a chain
+ */
+async function fetchChainTokens(chainId: number, address: string): Promise<{ value: number, assets: ChainAsset[] }> {
+    try {
+        const balances = await getTokenBalances(chainId, address);
+
+        // Safety check: ensure balances is an array
+        if (!Array.isArray(balances)) {
+            return { value: 0, assets: [] };
+        }
+
+        // Filter tokens with zero balance
+        const nonZeroTokens = balances.filter(b => b.tokenBalance && b.tokenBalance !== "0x" && BigInt(b.tokenBalance) > 0n);
+
+        const assets: ChainAsset[] = [];
+
+        // Limit to top 10 to avoid request spam for metadata
+        const tokensToProcess = nonZeroTokens.slice(0, 10);
+
+        for (const token of tokensToProcess) {
+            // Create initial asset (we update it after metadata)
+            const asset: ChainAsset = {
+                symbol: '...', // Placeholder
+                name: 'Loading...',
+                balance: 0,
+                valueUsd: 0,
+                contractAddress: token.contractAddress,
+                isToken: true
+            };
+
+            try {
+                // Fetch metadata using backend proxy
+                const metadata = await getTokenMetadata(chainId, token.contractAddress);
+
+                asset.name = metadata.name || 'Unknown Token';
+                asset.symbol = metadata.symbol || 'ERC20';
+                asset.logo = metadata.logo || undefined;
+
+                if (metadata.decimals) {
+                    const bal = BigInt(token.tokenBalance);
+                    asset.balance = Number(bal) / Math.pow(10, metadata.decimals);
+                } else {
+                    asset.balance = 0;
+                }
+            } catch (err) {
+                // Silent fail for metadata
+                asset.name = 'Unknown Token';
+            }
+
+            assets.push(asset);
+        }
+
+        return { value: 0, assets };
+    } catch (e: any) {
+        // Suppress 400/500/404 errors common on testnets for Enhanced APIs
+        const isExpectedError = e?.message?.includes('400') || e?.message?.includes('500') || e?.message?.includes('404');
+        if (!isExpectedError) {
+            console.warn(`[Supressed] Token fetch failed for chain ${chainId}`);
+        }
+        return { value: 0, assets: [] };
+    }
+}
+
+/**
+ * Fetch NFTs for a chain
+ */
+async function fetchChainNfts(chainId: number, address: string): Promise<{ count: number, value: number }> {
+    try {
+        // Only fetch NFTs for mainnets to save resources/time
+        const config = getChainConfig(chainId);
+        if (config?.type !== 'mainnet') return { count: 0, value: 0 };
+
+        const data = await getNfts(chainId, address);
+        return { count: data.totalCount, value: 0 };
+    } catch (e) {
+        // console.warn(`Failed to fetch NFTs for chain ${chainId}`, e);
+        return { count: 0, value: 0 };
+    }
 }
 
 /**
@@ -36,6 +134,7 @@ async function fetchChainBalance(
             balance: '0',
             balanceFormatted: 0,
             error: 'Unknown chain',
+            assets: []
         };
     }
 
@@ -47,12 +146,28 @@ async function fetchChainBalance(
         const balanceFormatted = weiToEther(balance);
         console.log(`[walletService] Formatted balance for ${chainConfig.name}: ${balanceFormatted} ${chainConfig.symbol}`);
 
+        // Fetch tokens and NFTs in parallel
+        const [tokenData, nftData] = await Promise.all([
+            fetchChainTokens(chainId, address),
+            fetchChainNfts(chainId, address)
+        ]);
+
         return {
             chainId,
             chainName: chainConfig.name,
             symbol: chainConfig.symbol,
             balance,
             balanceFormatted,
+            tokenValue: tokenData.value,
+            nftValue: nftData.value,
+            nftCount: nftData.count,
+            assets: [{
+                symbol: chainConfig.symbol,
+                balance: balanceFormatted,
+                valueUsd: 0, // Will be updated later
+                name: chainConfig.name,
+                isToken: false
+            }, ...tokenData.assets]
         };
     } catch (error) {
         console.error(`[walletService] FATAL Error for ${chainConfig.name}:`, error);
@@ -63,6 +178,7 @@ async function fetchChainBalance(
             balance: '0',
             balanceFormatted: 0,
             error: error instanceof Error ? error.message : 'Failed to fetch balance',
+            assets: []
         };
     }
 }
@@ -164,11 +280,20 @@ export async function getPortfolioData(
 
     // Calculate total value and update individual balance usdValues
     const totalValue = calculatePortfolioValue(balances, prices);
+
+    // Aggregate Token and NFT stats
+    const totalTokenValue = balances.reduce((acc, b) => acc + (b.tokenValue || 0), 0);
+    const totalNftValue = balances.reduce((acc, b) => acc + (b.nftValue || 0), 0);
+    const totalNftCount = balances.reduce((acc, b) => acc + (b.nftCount || 0), 0);
+
     console.log('Portfolio balances with USD values:', balances);
     console.log('Total Portfolio Value:', totalValue);
 
     return {
         totalValue,
+        totalTokenValue,
+        totalNftValue,
+        totalNftCount,
         balances,
         connectedChains: successfulBalances.length,
         lastUpdated: new Date(),

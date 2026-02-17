@@ -53,14 +53,16 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
         type: 'mainnet',
         coingeckoId: 'ethereum',
     },
-    43114: {
-        chainId: 43114,
-        name: 'Avalanche',
-        symbol: 'AVAX',
-        icon: '🔺',
-        type: 'mainnet',
-        coingeckoId: 'avalanche-2',
-    },
+    /*
+        43114: {
+            chainId: 43114,
+            name: 'Avalanche',
+            symbol: 'AVAX',
+            icon: '🔺',
+            type: 'mainnet',
+            coingeckoId: 'avalanche-2',
+        },
+        */
     56: {
         chainId: 56,
         name: 'BSC',
@@ -69,14 +71,16 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
         type: 'mainnet',
         coingeckoId: 'binancecoin',
     },
-    1101: {
-        chainId: 1101,
-        name: 'Polygon zkEVM',
-        symbol: 'ETH',
-        icon: '💜',
-        type: 'mainnet',
-        coingeckoId: 'ethereum',
-    },
+    /*
+        1101: {
+            chainId: 1101,
+            name: 'Polygon zkEVM',
+            symbol: 'ETH',
+            icon: '💜',
+            type: 'mainnet',
+            coingeckoId: 'ethereum',
+        },
+        */
     59144: {
         chainId: 59144,
         name: 'Linea',
@@ -93,6 +97,30 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
         type: 'mainnet',
         coingeckoId: 'ethereum',
     },
+    250: {
+        chainId: 250,
+        name: 'Fantom',
+        symbol: 'FTM',
+        icon: '👻',
+        type: 'mainnet',
+        coingeckoId: 'fantom',
+    },
+    324: {
+        chainId: 324,
+        name: 'ZkSync Era',
+        symbol: 'ETH',
+        icon: '🚀',
+        type: 'mainnet',
+        coingeckoId: 'ethereum',
+    },
+    81457: {
+        chainId: 81457,
+        name: 'Blast',
+        symbol: 'ETH',
+        icon: '💥',
+        type: 'mainnet',
+        coingeckoId: 'ethereum',
+    },
 
     // Testnets
     11155111: {
@@ -103,14 +131,16 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
         type: 'testnet',
         coingeckoId: 'ethereum',
     },
-    17000: {
-        chainId: 17000,
-        name: 'Holesky',
-        symbol: 'ETH',
-        icon: '⟠',
-        type: 'testnet',
-        coingeckoId: 'ethereum',
-    },
+    /*
+        17000: {
+            chainId: 17000,
+            name: 'Holesky',
+            symbol: 'ETH',
+            icon: '⟠',
+            type: 'testnet',
+            coingeckoId: 'ethereum',
+        },
+        */
     80002: {
         chainId: 80002,
         name: 'Polygon Amoy',
@@ -119,14 +149,16 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
         type: 'testnet',
         coingeckoId: 'matic-network',
     },
-    97: {
-        chainId: 97,
-        name: 'BSC Testnet',
-        symbol: 'BNB',
-        icon: '💛',
-        type: 'testnet',
-        coingeckoId: 'binancecoin',
-    },
+    /*
+        97: {
+            chainId: 97,
+            name: 'BSC Testnet',
+            symbol: 'BNB',
+            icon: '💛',
+            type: 'testnet',
+            coingeckoId: 'binancecoin',
+        },
+        */
     421614: {
         chainId: 421614,
         name: 'Arbitrum Sepolia',
@@ -151,14 +183,40 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
         type: 'testnet',
         coingeckoId: 'ethereum',
     },
-    43113: {
-        chainId: 43113,
-        name: 'Avalanche Fuji',
-        symbol: 'AVAX',
-        icon: '🔺',
+    300: {
+        chainId: 300,
+        name: 'ZkSync Sepolia',
+        symbol: 'ETH',
+        icon: '🚀',
         type: 'testnet',
-        coingeckoId: 'avalanche-2',
+        coingeckoId: 'ethereum',
     },
+    534351: {
+        chainId: 534351,
+        name: 'Scroll Sepolia',
+        symbol: 'ETH',
+        icon: '📜',
+        type: 'testnet',
+        coingeckoId: 'ethereum',
+    },
+    168587773: {
+        chainId: 168587773,
+        name: 'Blast Sepolia',
+        symbol: 'ETH',
+        icon: '💥',
+        type: 'testnet',
+        coingeckoId: 'ethereum',
+    },
+    /*
+        43113: {
+            chainId: 43113,
+            name: 'Avalanche Fuji',
+            symbol: 'AVAX',
+            icon: '🔺',
+            type: 'testnet',
+            coingeckoId: 'avalanche-2',
+        },
+        */
 };
 
 // Helper functions
@@ -219,6 +277,12 @@ export const CHAIN_COLORS: Record<number, string> = {
     11155420: '#FF0420', // Optimism Sepolia
     84532: '#0052FF',    // Base Sepolia
     43113: '#E84142',    // Avalanche Fuji
+    250: '#1969FF',      // Fantom - Blue
+    324: '#8C8DFC',      // ZkSync - Purple
+    81457: '#FCFC03',    // Blast - Yellow
+    300: '#8C8DFC',      // ZkSync Sepolia
+    534351: '#FFF6D8',   // Scroll Sepolia
+    168587773: '#FCFC03', // Blast Sepolia
 };
 
 export const getChainColor = (chainId: number): string => {

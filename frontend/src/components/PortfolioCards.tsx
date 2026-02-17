@@ -1,5 +1,5 @@
 import { portfolioStats } from '@/data/mockData';
-import { DollarSign, Activity, TrendingUp, Loader2, Info, Shield, Target, GraduationCap } from 'lucide-react';
+import { DollarSign, Activity, TrendingUp, Loader2, Info, Shield, Target, GraduationCap, Coins, Image as ImageIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { PortfolioData } from '@/lib/walletService';
 import { useNetworkMode } from '@/contexts/NetworkModeContext';
@@ -86,7 +86,7 @@ function StatCard({ title, value, subtitle, icon, trend, variant = 'default', ri
       </div>
       <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1.5">
         {title}
-        {hint && <Info className="w-3 h-3 opacity-40 hover:opacity-100 cursor-help" title={hint} />}
+        {hint && <Info className="w-3 h-3 opacity-40 hover:opacity-100 cursor-help" />}
       </p>
       <p className={`text-2xl font-heading font-bold ${variant === 'risk' && riskLevel ? riskColors[riskLevel] : ''}`}>
         {value}
@@ -129,10 +129,12 @@ function NetworkCard({ name, symbol, icon, balance, usdValue, isConnected, type,
           <div className="flex flex-col gap-1">
             {error ? (
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] text-destructive font-black uppercase tracking-widest flex items-center gap-1">
-                  <Activity className="w-3 h-3" /> Sync Failed
+                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-1">
+                  <Activity className="w-3 h-3" /> Sync Issue
                 </span>
-                <p className="text-[10px] text-muted-foreground line-clamp-1 leading-tight" title={error}>{error}</p>
+                <p className="text-[10px] text-muted-foreground line-clamp-1 leading-tight" title={error}>
+                  {error.includes('403') ? 'Network Disabled' : error.includes('503') ? 'Quota Reached' : 'Service Down'}
+                </p>
               </div>
             ) : (
               <>
@@ -152,8 +154,17 @@ function NetworkCard({ name, symbol, icon, balance, usdValue, isConnected, type,
             )}
           </div>
         ) : (
-          <div className="text-center py-1">
-            <span className="text-xs text-muted-foreground italic">Connect to view</span>
+          <div className="flex flex-col gap-1 opacity-70">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Balance</span>
+              <span className="font-bold text-sm tracking-tight">- {symbol}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Value</span>
+              <div className="text-right">
+                <p className="text-sm font-bold text-foreground">-</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -178,7 +189,12 @@ export function PortfolioCards({ portfolioData, isLoading, isConnected, analysis
   const testnetChains = allChains.filter(c => c.type === 'testnet');
 
   const showRealData = isConnected && portfolioData;
-  const totalValue = showRealData ? portfolioData.totalValue : 0;
+  const nativeValue = showRealData ? portfolioData.totalValue : 0;
+  const tokenValue = showRealData ? (portfolioData.totalTokenValue || 0) : 0;
+  const nftValue = showRealData ? (portfolioData.totalNftValue || 0) : 0;
+  const nftCount = showRealData ? (portfolioData.totalNftCount || 0) : 0;
+
+  const totalNetWorth = nativeValue + tokenValue + nftValue;
 
   const getRiskLevel = (score: number) => {
     if (score >= 80) return 'low';
@@ -213,19 +229,35 @@ export function PortfolioCards({ portfolioData, isLoading, isConnected, analysis
         </div>
 
         {/* Global Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <StatCard
-            title="Total Portfolio Value"
-            value={isConnected ? formatCurrency(totalValue, preferredCurrency) : 'Connect Wallet'}
+            title="Net Worth"
+            value={isConnected ? formatCurrency(totalNetWorth, preferredCurrency) : 'Connect Wallet'}
             icon={<DollarSign className="w-6 h-6 text-primary" />}
             trend={showRealData ? { value: portfolioStats.change24h, isPositive: portfolioStats.change24h > 0 } : undefined}
             isLoading={isLoading}
             hint={learningMode === 'Beginner' ? beginnerHints.value : undefined}
           />
 
+          <StatCard
+            title="DeFi & Tokens"
+            value={isConnected ? formatCurrency(tokenValue, preferredCurrency) : '-'}
+            subtitle={isConnected ? "ERC20 Holdings" : undefined}
+            icon={<Coins className="w-6 h-6 text-blue-500" />}
+            isLoading={isLoading}
+          />
+
+          <StatCard
+            title="NFT Collection"
+            value={isConnected ? nftCount.toString() : '-'}
+            subtitle={isConnected ? (nftValue > 0 ? `Est. ${formatCurrency(nftValue, preferredCurrency)}` : "Collectibles") : undefined}
+            icon={<ImageIcon className="w-6 h-6 text-purple-500" />}
+            isLoading={isLoading}
+          />
+
           <div onClick={(!analysis && !isAnalyzing && onAnalyze) ? onAnalyze : undefined}>
             <StatCard
-              title="AI Portfolio Health"
+              title="AI Health Score"
               value={isConnected ? (isAnalyzing ? 'Analyzing...' : (analysis ? analysis.healthScore : 'Calculate')) : '-'}
               subtitle={isConnected ? (analysis ? `${analysis.riskLevel} Risk Analysis Complete` : "Click to trigger AI audit") : "Connect to analyze"}
               icon={isAnalyzing ? <Loader2 className="w-6 h-6 text-primary animate-spin" /> : <Shield className="w-6 h-6 text-primary" />}

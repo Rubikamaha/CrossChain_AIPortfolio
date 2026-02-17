@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Hero } from '@/components/Hero';
 import { PortfolioCards } from '@/components/PortfolioCards';
+import { OpportunityFeed } from '@/components/OpportunityFeed';
 import { PortfolioAnalytics } from '@/components/PortfolioAnalytics';
 import { AIInsights } from '@/components/AIInsights';
 import { AssetsTable } from '@/components/AssetsTable';
@@ -13,10 +14,11 @@ import { useNetworkMode } from '@/contexts/NetworkModeContext';
 import { openConnectModal, disconnect as walletDisconnect, modal } from '@/lib/walletConnect';
 import { aiService, type AIAnalysis } from '@/lib/aiService';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useWallet } from '@/hooks/useWallet';
+import { mockPortfolioData } from '@/data/mockData';
 
 const Index = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [account, setAccount] = useState<string | null>(null);
+  const { isConnected, account, connect, disconnect } = useWallet();
   const { toast } = useToast();
   const { networkMode } = useNetworkMode();
   const {
@@ -33,21 +35,6 @@ const Index = () => {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Synchronize with AppKit Account State
-  useEffect(() => {
-    console.log('[Index] Initializing AppKit account subscription...');
-    const unsubscribe = modal.subscribeAccount((state) => {
-      console.log('[Index] AppKit account state change:', state);
-      setIsConnected(state.isConnected);
-      setAccount(state.address || null);
-    });
-
-    return () => {
-      console.log('[Index] Cleaning up AppKit account subscription');
-      if (typeof unsubscribe === 'function') (unsubscribe as any)();
-    };
-  }, []);
-
   // Fetch wallet balances when connected
   const { portfolioData, isLoading, error, refresh } = useWalletBalances({
     address: account,
@@ -55,32 +42,38 @@ const Index = () => {
     enabled: isConnected && !!account,
   });
 
+  // USE MOCK DATA IF DISCONNECTED (Demo Mode)
+  // We treat the app as "Connected" for the dashboard components to show the data
+  const activeData = isConnected ? portfolioData : (mockPortfolioData as unknown as import('@/lib/walletService').PortfolioData);
+  const showDemoMode = !isConnected;
+  const dashboardConnectedState = true; // Always show dashboard content (Real or Mock)
+
   // Calculate and update health score when portfolio data is available
   useEffect(() => {
-    if (portfolioData) {
+    if (activeData) {
       const updateScoreAndSync = async () => {
         const { calculateHealthScore } = await import('@/lib/walletService');
-        const health = calculateHealthScore(portfolioData, riskPersonality);
+        const health = calculateHealthScore(activeData, riskPersonality);
         updateHealthScore(health.score, health.explanation);
-        updateSyncTime();
+        if (isConnected) updateSyncTime(); // Only sync time if real connection
       };
       updateScoreAndSync();
     }
-  }, [portfolioData, updateHealthScore, updateSyncTime, riskPersonality]);
+  }, [activeData, updateHealthScore, updateSyncTime, riskPersonality, isConnected]);
 
   const handleAnalyze = async () => {
-    if (!portfolioData) return;
+    if (!activeData) return;
 
     setIsAnalyzing(true);
     try {
-      const result = await aiService.generatePortfolioAnalysis(portfolioData, {
+      const result = await aiService.generatePortfolioAnalysis(activeData, {
         riskPersonality,
         learningMode,
         notifications,
         healthScore: activity.healthScore
       });
       setAnalysis(result);
-      updateAIInsightTime();
+      if (isConnected) updateAIInsightTime();
     } catch (e) {
       console.error(e);
       toast({
@@ -94,7 +87,7 @@ const Index = () => {
   };
 
   const handleConnect = () => {
-    openConnectModal();
+    connect();
     toast({
       title: 'Connecting...',
       description: 'Opening wallet selection modal.',
@@ -102,10 +95,8 @@ const Index = () => {
   };
 
   const handleDisconnect = async () => {
-    setIsConnected(false);
-    setAccount(null);
     try {
-      await walletDisconnect();
+      await disconnect();
       toast({
         title: 'Disconnected',
         description: 'Wallet disconnected successfully.',
@@ -142,33 +133,46 @@ const Index = () => {
         <div className="relative">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
+          {/* Demo Mode Banner */}
+          {!isConnected && (
+            <div className="bg-primary/5 py-1 text-center border-b border-primary/10">
+              <p className="text-xs text-primary font-medium">✨ Viewing Demo Portfolio. Connect wallet to see your live data.</p>
+            </div>
+          )}
+
+          {isConnected && (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+              <OpportunityFeed />
+            </div>
+          )}
+
           <PortfolioCards
-            portfolioData={portfolioData}
-            isLoading={isLoading}
-            isConnected={isConnected}
+            portfolioData={activeData}
+            isLoading={isLoading && isConnected}
+            isConnected={dashboardConnectedState}
             analysis={analysis}
             onAnalyze={handleAnalyze}
             isAnalyzing={isAnalyzing}
           />
           <PortfolioAnalytics
-            portfolioData={portfolioData}
-            isLoading={isLoading}
+            portfolioData={activeData}
+            isLoading={isLoading && isConnected}
           />
           <AIInsights
-            portfolioData={portfolioData}
-            isConnected={isConnected}
+            portfolioData={activeData}
+            isConnected={dashboardConnectedState}
             analysis={analysis}
             isAnalyzing={isAnalyzing}
             onAnalyze={handleAnalyze}
           />
           <AssetsTable
-            portfolioData={portfolioData}
-            isLoading={isLoading}
-            isConnected={isConnected}
+            portfolioData={activeData}
+            isLoading={isLoading && isConnected}
+            isConnected={dashboardConnectedState}
           />
           <AlertsPanel
             analysis={analysis}
-            portfolioData={portfolioData}
+            portfolioData={activeData}
           />
         </div>
       </main>

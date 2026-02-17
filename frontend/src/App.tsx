@@ -8,7 +8,11 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import Index from "./pages/Index";
 import Profile from "./pages/Profile";
 import AIInsightsPage from "./pages/AIInsightsPage";
+import AISwapPage from "./pages/AISwapPage";
+import AIRebalancePage from "./pages/AIRebalancePage";
 import NotFound from "./pages/NotFound";
+
+import { Web3Chatbot } from "./components/ChatBot/Web3Chatbot";
 
 const queryClient = new QueryClient();
 
@@ -19,11 +23,14 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <Web3Chatbot />
+          <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/insights" element={<AIInsightsPage />} />
+              <Route path="/transactions" element={<AISwapPage />} />
+              <Route path="/rebalance" element={<AIRebalancePage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
