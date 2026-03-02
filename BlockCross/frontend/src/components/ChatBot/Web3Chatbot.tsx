@@ -62,19 +62,24 @@ export const Web3Chatbot: React.FC = () => {
                 body: JSON.stringify({ messages: newMessages }),
             });
 
-            if (!response.ok) throw new Error('Failed to fetch response');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const error = new Error(errorData.details || 'Failed to fetch response');
+                (error as any).status = response.status;
+                throw error;
+            }
 
             const data = await response.json();
             setMessages((prev) => [...prev, data]);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Chat error:', error);
-            const isQuotaError = error.toString().includes("429") || error.toString().includes("quota");
+            const isQuotaError = error.status === 429 || error.toString().toLowerCase().includes("quota");
             setMessages((prev) => [
                 ...prev,
                 {
                     role: 'assistant',
                     content: isQuotaError
-                        ? "I've reached my OpenAI quota limit (Error 429). Please check your API credits or billing details on the OpenAI dashboard to continue chatting!"
+                        ? "I've reached my Gemini API quota limit (Error 429). Please check your Google Cloud Console billing or project limits to continue chatting!"
                         : 'Sorry, I encountered an error. Please check if the backend is running and the API key is valid.'
                 },
             ]);

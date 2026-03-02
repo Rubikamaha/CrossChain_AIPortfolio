@@ -2,10 +2,12 @@
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 import connectDB, { isDBConnected } from "./db.js";
 import InsightHistoryModel from "./models/InsightHistory.js";
+import swapRoute from "./routes/swapRoute.js";
+import aiInsightsRoute from "./routes/aiInsights.js";
 
 dotenv.config();
 
@@ -18,11 +20,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// OpenAI Setup
-// Initialize with dummy key if missing to prevent startup crash
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-key-for-development",
-});
+// Register routes
+app.use(swapRoute);
+app.use("/api/rebalance", aiInsightsRoute);
+app.use("/api/insights", aiInsightsRoute);
+
+// Gemini Setup
+const genAI = process.env.GOOGLE_API_KEY
+  ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+  : null;
 
 // Your Alchemy API Key - works for ALL chains
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || "_1DrgpgoYg1fQ2ohpmd8v";
@@ -34,35 +40,42 @@ const RPC_URLS = {
   "1": [
     `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
     "https://eth.llamarpc.com",
-    "https://rpc.ankr.com/eth"
+    "https://rpc.ankr.com/eth",
+    "https://1rpc.io/eth"
   ],
   "137": [
     `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
     "https://polygon-rpc.com",
-    "https://rpc.ankr.com/polygon"
+    "https://rpc.ankr.com/polygon",
+    "https://1rpc.io/poly"
   ],
   "42161": [
     `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
     "https://arb1.arbitrum.io/rpc",
-    "https://rpc.ankr.com/arbitrum"
+    "https://rpc.ankr.com/arbitrum",
+    "https://1rpc.io/arb"
   ],
   "10": [
     `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
     "https://mainnet.optimism.io",
-    "https://rpc.ankr.com/optimism"
+    "https://rpc.ankr.com/optimism",
+    "https://1rpc.io/op"
   ],
   "8453": [
     `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
     "https://mainnet.base.org",
-    "https://rpc.ankr.com/base"
+    "https://rpc.ankr.com/base",
+    "https://1rpc.io/base"
   ],
   "43114": [
     `https://avalanche-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-    "https://api.avax.network/ext/bc/C/rpc"
+    "https://api.avax.network/ext/bc/C/rpc",
+    "https://rpc.ankr.com/avalanche"
   ],
   "56": [
     `https://bnb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-    "https://bsc-dataseed.binance.org"
+    "https://bsc-dataseed.binance.org",
+    "https://rpc.ankr.com/bsc"
   ],
   "250": [
     `https://fantom-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
@@ -70,23 +83,72 @@ const RPC_URLS = {
     "https://rpcapi.fantom.network",
     "https://fantom-rpc.publicnode.com"
   ],
-  // Single URLs (convert to array in logic if needed, but keeping simple here for unused ones)
-  "1101": `https://polygonzkevm-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, // Polygon zkEVM
-  "59144": `https://linea-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,    // Linea
-  "534352": `https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,  // Scroll
-  "11155111": `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,     // Sepolia
-  "17000": `https://eth-holesky.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,        // Holesky
-  "80002": `https://polygon-amoy.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,       // Polygon Amoy
-  "97": `https://bnb-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,           // BSC Testnet
-  "421614": `https://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,       // Arbitrum Sepolia
-  "11155420": `https://opt-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,     // Optimism Sepolia
-  "84532": `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,       // Base Sepolia
-  "43113": `https://avalanche-fuji.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,       // Avalanche Fuji
-  "324": `https://zksync-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,        // ZkSync Era
-  "81457": `https://blast-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,        // Blast
-  "300": `https://zksync-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,        // ZkSync Sepolia
-  "168587773": `https://blast-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,   // Blast Sepolia
-  "534351": `https://scroll-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`      // Scroll Sepolia
+  // Testnets & Others
+  "1101": [
+    `https://polygonzkevm-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://zkevm-rpc.com"
+  ],
+  "59144": [
+    `https://linea-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://rpc.linea.build"
+  ],
+  "534352": [
+    `https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://rpc.scroll.io"
+  ],
+  "11155111": [
+    `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://eth-sepolia.public.blastapi.io",
+    "https://rpc.ankr.com/eth_sepolia"
+  ],
+  "17000": [
+    `https://eth-holesky.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://ethereum-holesky-rpc.publicnode.com"
+  ],
+  "80002": [
+    `https://polygon-amoy.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://rpc-amoy.polygon.technology"
+  ],
+  "97": [
+    `https://bnb-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://data-seed-prebsc-1-s1.binance.org:8545"
+  ],
+  "421614": [
+    `https://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://sepolia-rollup.arbitrum.io/rpc"
+  ],
+  "11155420": [
+    `https://opt-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://sepolia.optimism.io"
+  ],
+  "84532": [
+    `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://sepolia.base.org"
+  ],
+  "43113": [
+    `https://avalanche-fuji.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://api.avax-test.network/ext/bc/C/rpc"
+  ],
+  "324": [
+    `https://zksync-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://mainnet.era.zksync.io"
+  ],
+  "81457": [
+    `https://blast-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://rpc.blast.io"
+  ],
+  "300": [
+    `https://zksync-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://sepolia.era.zksync.dev"
+  ],
+  "168587773": [
+    `https://blast-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://sepolia.blast.io"
+  ],
+  "534351": [
+    `https://scroll-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    "https://sepolia-rpc.scroll.io"
+  ]
 };
 
 // Chain info for balance responses
@@ -264,12 +326,22 @@ app.post("/rpc", async (req, res) => {
     // --- FALLBACK LOOP ---
     for (let i = 0; i < rpcUrls.length; i++) {
       const url = rpcUrls[i];
+
+      // CRITICAL: Skip non-Alchemy URLs for Alchemy-specific "Enhanced API" methods
+      if (method.startsWith("alchemy_") && !url.includes("alchemy.com")) {
+        continue;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
       try {
         if (i > 0) console.log(`[Backend] ⚠️ Retrying with fallback URL (${i}): ${safeUrl(url)}`);
 
         const resp = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
@@ -278,37 +350,65 @@ app.post("/rpc", async (req, res) => {
           }),
         });
 
+        clearTimeout(timeoutId);
+
         if (!resp.ok) {
-          // If server error, treat as failure and try next
           const errorText = await resp.text();
+          // If it's a 4xx error from Alchemy for an enhanced API, it usually means unsupported on this chain
+          if (resp.status >= 400 && resp.status < 500 && method.startsWith("alchemy_")) {
+            console.warn(`[Backend] Alchemy Enhanced API ${method} likely unsupported on chain ${chainIdStr} (HTTP ${resp.status})`);
+            break; // Stop trying other fallbacks for this specific method
+          }
           throw new Error(`HTTP ${resp.status}: ${errorText}`);
         }
 
         data = await resp.json();
 
-        // Check for RPC-level errors that imply sync issues (optional, but good)
+        // Specific handling for "Method not found" or "Unsupported" errors from the RPC itself
+        if (data.error && (data.error.code === -32601 || data.error.message?.toLowerCase().includes("not supported"))) {
+          if (method.startsWith("alchemy_")) {
+            console.warn(`[Backend] Method ${method} not supported by this Alchemy endpoint for chain ${chainIdStr}`);
+            break;
+          }
+        }
+
         if (data.error && (data.error.code === -32000 || data.error.message?.includes("sync"))) {
           throw new Error(`RPC Sync Error: ${data.error.message}`);
         }
 
-        // If we are here, we succeeded
         success = true;
         if (i > 0) console.log(`[Backend] ✅ Recovered using fallback URL: ${safeUrl(url)}`);
         break;
 
       } catch (e) {
-        console.warn(`[Backend] ❌ Failed to fetch from ${safeUrl(url)}: ${e.message}`);
-        lastError = e;
-        // Continue to next URL
+        clearTimeout(timeoutId);
+        const errorMsg = e.name === 'AbortError' ? 'Request Timeout (5s)' : e.message;
+        console.warn(`[Backend] ❌ Failed to fetch from ${safeUrl(url)}: ${errorMsg}`);
+        lastError = new Error(errorMsg);
       }
     }
 
     if (!success) {
+      // If an Alchemy-specific method failed on all allowed providers, return a neutral result
+      if (method.startsWith("alchemy_")) {
+        console.warn(`[Backend] ⚠️ Returning neutral empty result for unsupported Alchemy method: ${method}`);
+        let neutralResult = { jsonrpc: "2.0", id: 1, result: null };
+
+        if (method === "alchemy_getTokenBalances") {
+          neutralResult.result = { address: params[0] || "0x", tokenBalances: [] };
+        } else if (method === "alchemy_getTokenMetadata") {
+          neutralResult.result = { symbol: "Unknown", decimals: 18, logo: null, name: "Unknown" };
+        }
+
+        return res.json(neutralResult);
+      }
+
       console.error(`[Backend] ALL RPCs failed for chain ${chainIdStr}`);
       return res.status(503).json({
         error: "All RPC providers failed",
         details: lastError ? lastError.message : "Unknown error",
-        chainId
+        chainId,
+        method
       });
     }
 
@@ -370,7 +470,7 @@ app.get("/api/prices", async (req, res) => {
   }
 });
 
-// 2. Generate AI Insights (OpenAI) - FINAL ROBUST VERSION
+// 2. Generate AI Insights (Gemini)
 app.post("/api/insights", async (req, res) => {
   try {
     console.log("📊 AI Insights request received");
@@ -380,7 +480,9 @@ app.post("/api/insights", async (req, res) => {
       learningMode = 'Beginner',
     } = userProfile || {};
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    if (!genAI) {
+      return res.status(503).json({ error: "Google API key not configured" });
+    }
 
     // 1. Fetch Market Data (Safe Wrapper)
     let marketContext = "Market Data Unavailable";
@@ -408,73 +510,102 @@ app.post("/api/insights", async (req, res) => {
     }
 
     // 2. Construct Prompt
+    const totalValueUsd = portfolio?.balances?.reduce((sum, b) => sum + (b.usdValue || 0), 0) || 0;
+    const insightMode = req.body.userProfile?.insightMode || 'Market Mode';
+
     const prompt = `
-You are a crypto portfolio analysis assistant.
+You are an expert crypto portfolio analysis agent.
 
 INPUT DATA:
 - Network: ${network}
 - Risk Profile: ${riskPersonality}
 - Portfolio holdings: ${JSON.stringify(portfolio?.balances || [], null, 2)}
 - Market Context: ${marketContext}
+- Insight Mode: ${insightMode}
 
 TASK:
-1. Analyze the portfolio risk and diversification.
-2. For each token, suggest one action: BUY, SELL, HOLD.
-3. Give a confidence score between 0 and 1 for each action.
-4. Explain the reason in simple language (no financial jargon).
-5. Suggest rebalancing if one asset exceeds 40% of total portfolio.
-6. If data is missing, make a conservative assumption and mention it.
+Provide a detailed portfolio analysis in the EXACT JSON structure requested below.
+Determine the correct distribution percentages (must sum to 100) and an appropriate risk score (0-100).
+For testnet or simulated data, mark the environment as "Testnet Simulation".
 
-RULES:
-- Do NOT give financial advice disclaimers.
-- Keep explanations short (2–3 lines).
-- Prioritize capital safety.
-- For testnet, clearly mark results as "Simulated".
-
-OUTPUT FORMAT (JSON):
+OUTPUT FORMAT (Valid JSON Only):
 {
-  "summary": "...",
-  "portfolio_risk": "Low | Medium | High",
-  "actions": [
-    {
-      "token": "ETH",
-      "action": "HOLD",
-      "confidence": 0.68,
-      "reason": "..."
-    }
-  ],
-  "rebalancing_suggestion": "..."
+  "wallet": "${portfolio?.address || 'unknown'}",
+  "totalValue": ${totalValueUsd},
+  "structuredAnalysis": {
+      "portfolio_summary": "1-2 sentence overall summary.",
+      "risk_assessment": "Explain the current risk profile.",
+      "diversification_analysis": "Analyze asset and chain spread.",
+      "chain_exposure_commentary": "Thoughts on the chain allocation.",
+      "optimization_recommendations": "Actionable next steps. Use BUY/SELL/HOLD language."
+  },
+  "analytics": {
+      "environment": "${network === 'mainnet' ? 'Mainnet' : 'Testnet Simulation'}",
+      "total_value_usd": ${totalValueUsd},
+      "active_chains": 1,
+      "chain_distribution": { "Ethereum": 100 },
+      "asset_distribution": { "ETH": 100 },
+      "stablecoin_ratio": 0,
+      "top_asset_concentration": 100,
+      "risk_score": 50,
+      "volatility_exposure_level": "Medium",
+      "insight_mode": "${insightMode}"
+  }
 }
 `;
 
-    // 3. AI Execution (or Mock)
-    if (!apiKey || apiKey.includes("placeholder")) {
-      console.log("⚠️ Using Mock Response");
-      return res.json({
-        summary: "Portfolio looks balanced. (Mock Data)",
-        portfolio_risk: "Medium",
-        actions: enrichedAssets.map(a => ({
-          token: a.symbol,
-          action: "HOLD",
-          confidence: 0.8,
-          reason: `Holding ${a.symbol} based on ${a.trend} trend.`
-        })),
-        rebalancing_suggestion: "None needed."
-      });
-    }
-
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+    console.log("🚀 Using Gemini for Insights");
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: { responseMimeType: "application/json" }
     });
-
-    const result = JSON.parse(completion.choices[0].message.content);
-    res.json(result);
+    const completion = await model.generateContent(prompt);
+    const response = await completion.response;
+    const text = response.text();
+    res.json(JSON.parse(text));
 
   } catch (error) {
     console.error("❌ AI Insight Error:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+
+    let status = error.status || 500;
+    const errorString = String(error?.message || "") + " " + JSON.stringify(error);
+
+    if (errorString.includes("429") || errorString.toLowerCase().includes("too many requests") || errorString.toLowerCase().includes("quota")) {
+      status = 429;
+    }
+
+    // Auto-fallback for rate limit to prevent UI breakage
+    if (status === 429) {
+      console.log("⚠️ Rate limit hit. Sending mock fallback data.");
+      return res.status(200).json({
+        wallet: portfolio?.address || 'unknown',
+        totalValue: portfolio?.balances?.reduce((sum, b) => sum + (b.usdValue || 0), 0) || 0,
+        structuredAnalysis: {
+          portfolio_summary: "The AI API is currently rate limited. This is a simulated fallback summary. Your portfolio is being tracked successfully.",
+          risk_assessment: "Unable to process full risk due to API limits. Defaulting to Moderate.",
+          diversification_analysis: "Simulation: Assets appear appropriately diversified for current market conditions.",
+          chain_exposure_commentary: "Simulation: Chain exposure is standard.",
+          optimization_recommendations: "Please try generating insights again in a minute when the API rate limit resets."
+        },
+        analytics: {
+          environment: "API Rate Limited (Fallback)",
+          total_value_usd: portfolio?.balances?.reduce((sum, b) => sum + (b.usdValue || 0), 0) || 0,
+          active_chains: 1,
+          chain_distribution: { "Fallback": 100 },
+          asset_distribution: { "Fallback": 100 },
+          stablecoin_ratio: 0,
+          top_asset_concentration: 100,
+          risk_score: 50,
+          volatility_exposure_level: "Medium",
+          insight_mode: "Fallback Mode"
+        }
+      });
+    }
+
+    res.status(status).json({
+      error: status === 429 ? "Rate Limit Exceeded" : "Internal Server Error",
+      details: status === 429 ? "The AI API is currently receiving too many requests. Please try again in a minute." : error.message
+    });
   }
 });
 
@@ -745,59 +876,16 @@ app.get("/chains", (req, res) => {
   });
 });
 
-// 6. Parse Swap Command (AI)
+// 6. Parse Swap Command (Gemini)
 app.post("/api/parse-swap", async (req, res) => {
   try {
     const { command, userAddress } = req.body;
     if (!command) return res.status(400).json({ error: "Missing command" });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    // Check for "mock" mode (if key is missing/placeholder)
-    if (!apiKey || apiKey.startsWith("sk-placeholder") || apiKey.includes("placeholder")) {
-      console.log("⚠️ Using Mock Parser for Swap Command");
-      await new Promise(r => setTimeout(r, 1000));
-
-      // Simple regex-based mock parser for demo purposes
-      const lowerCmd = command.toLowerCase();
-      let amount = "0";
-      let tokenIn = "ETH";
-      let tokenOut = "USDC"; // Default
-
-      // Extract amount (very basic)
-      const amountMatch = lowerCmd.match(/(\d+(\.\d+)?)/);
-      if (amountMatch) amount = amountMatch[0];
-
-      // Extract common tokens
-      if (lowerCmd.includes("eth")) tokenIn = "ETH";
-      if (lowerCmd.includes("usdc")) tokenOut = "USDC";
-      if (lowerCmd.includes("dai")) tokenOut = "DAI";
-      if (lowerCmd.includes("btc")) tokenOut = "WBTC";
-      if (lowerCmd.includes("uni")) tokenOut = "UNI";
-
-      // Check direction
-      if (lowerCmd.includes("to eth") || lowerCmd.includes("for eth")) {
-        const temp = tokenIn; // Swap logic flip - wait, logic above sets tokenIn='ETH' default
-        // If command was "swap 100 USDC for ETH" -> default set tokenIn=ETH, tokenOut=USDC from include checks
-        // We need to be smarter.
-
-        // Re-eval for mock
-        if (lowerCmd.startsWith("swap eth")) { tokenIn = "ETH"; }
-        else if (lowerCmd.includes("usdc")) { tokenIn = "USDC"; tokenOut = "ETH"; }
-      }
-
-      return res.json({
-        action: "swap",
-        amount,
-        isPercentage: false, // simplified for mock
-        tokenIn: tokenIn.toUpperCase(),
-        tokenOut: tokenOut.toUpperCase(),
-        confidence: 0.9,
-        explanation: `(Mock) I understood you want to swap ${amount} ${tokenIn.toUpperCase()} for ${tokenOut.toUpperCase()}.`
-      });
+    if (!genAI) {
+      return res.status(503).json({ error: "Google API key not configured" });
     }
 
-    // Real OpenAI Parser
     const prompt = `
       You are a DeFi execution agent. Parser the following user command into a structured JSON swap intent.
       
@@ -826,22 +914,25 @@ app.post("/api/parse-swap", async (req, res) => {
       }
     `;
 
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: "You are a precise JSON extractor." }, { role: "user", content: prompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+    console.log("🚀 Using Gemini for Swap Parsing");
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: { responseMimeType: "application/json" }
     });
-
-    const result = JSON.parse(completion.choices[0].message.content);
-    res.json(result);
+    const completion = await model.generateContent(prompt);
+    const response = await completion.response;
+    res.json(JSON.parse(response.text()));
 
   } catch (error) {
     console.error("Swap Parse Error:", error);
-    res.status(500).json({ error: "Failed to parse swap command" });
+    res.status(error.status || 500).json({
+      error: "Failed to parse swap command",
+      details: error.message
+    });
   }
 });
 
-// 7. AI Rebalancing Analysis
+// 7. AI Rebalancing Analysis (Gemini)
 app.post("/api/rebalance/analyze", async (req, res) => {
   try {
     console.log("⚖️ Rebalance Analysis Request");
@@ -851,72 +942,10 @@ app.post("/api/rebalance/analyze", async (req, res) => {
       marketCondition = 'Neutral'
     } = userProfile || {};
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    // --- MOCK / FALLBACK LOGIC ---
-    // If no API key, or explicit mock, run local deterministic logic
-    if (!apiKey || apiKey.startsWith("sk-placeholder") || apiKey.includes("placeholder")) {
-      console.log(`⚠️ Using Mock Rebalancing Logic for ${riskPersonality} profile`);
-      await new Promise(r => setTimeout(r, 1500)); // Sim delay
-
-      // 1. Define ideal allocation based on profile
-      let targetAllocation = {
-        Stablecoins: 0,
-        "Large Cap": 0,
-        "Mid/Small Cap": 0
-      };
-
-      if (riskPersonality === 'Conservative') {
-        targetAllocation = { Stablecoins: 50, "Large Cap": 40, "Mid/Small Cap": 10 };
-      } else if (riskPersonality === 'Aggressive') {
-        targetAllocation = { Stablecoins: 10, "Large Cap": 40, "Mid/Small Cap": 50 };
-      } else {
-        // Balanced
-        targetAllocation = { Stablecoins: 30, "Large Cap": 50, "Mid/Small Cap": 20 };
-      }
-
-      // 2. Mock Current Allocation (Randomized slightly for "Drift" effect if portfolio is empty, else roughly calculate)
-      // Since we might not have full token categories, we'll simulate a drift scenario where the user is "Too Risky" or "Too Safe"
-
-      const currentAllocation = {
-        Stablecoins: 15, // Simulate low stablecoin (risk)
-        "Large Cap": 45,
-        "Mid/Small Cap": 40
-      };
-
-      // 3. Generate Actions to fix drift
-      // Example: Sell Small Cap -> Buy Stablecoin
-      const actions = [
-        {
-          id: 1,
-          action: "Sell",
-          asset: "Small Caps (Index)",
-          amount: 1000,
-          valueUsd: 1000,
-          reason: "Overexposed to high volatility assets."
-        },
-        {
-          id: 2,
-          action: "Buy",
-          asset: "USDC",
-          amount: 1000,
-          valueUsd: 1000,
-          reason: `Rebalancing to hit ${targetAllocation.Stablecoins}% stablecoin target.`
-        }
-      ];
-
-      return res.json({
-        healthScore: 72,
-        riskScore: riskPersonality === 'Aggressive' ? 85 : 45,
-        currentAllocation,
-        targetAllocation,
-        driftDetected: true,
-        actions,
-        explanation: `Your portfolio is currently drifting towards higher risk than your '${riskPersonality}' profile suggests. We recommend taking profits from small-cap assets and stabilizing with USDC.`
-      });
+    if (!genAI) {
+      return res.status(503).json({ error: "Google API key not configured" });
     }
 
-    // --- REAL AI LOGIC ---
     const prompt = `
       You are an expert Portfolio Manager AI.
       User Profile: ${riskPersonality}
@@ -952,24 +981,27 @@ app.post("/api/rebalance/analyze", async (req, res) => {
       }
     `;
 
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+    console.log("🚀 Using Gemini for Rebalance Analysis");
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: { responseMimeType: "application/json" }
     });
-
-    const result = JSON.parse(completion.choices[0].message.content);
-    res.json(result);
+    const completion = await model.generateContent(prompt);
+    const response = await completion.response;
+    res.json(JSON.parse(response.text()));
 
   } catch (error) {
     console.error("Rebalance Analysis Error:", error);
-    res.status(500).json({ error: "Failed to analyze rebalancing needs" });
+    res.status(error.status || 500).json({
+      error: "Failed to analyze rebalancing needs",
+      details: error.message
+    });
   }
 });
 
 
 
-// 8. General AI Chatbot (Web3 Assistant)
+// 8. General AI Chatbot (Gemini)
 app.post("/api/chat", async (req, res) => {
   try {
     const { messages } = req.body;
@@ -977,63 +1009,37 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Missing or invalid messages array" });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    // --- MOCK / FALLBACK LOGIC ---
-    if (!apiKey || apiKey.startsWith("sk-placeholder") || apiKey.includes("placeholder")) {
-      console.log("⚠️ Using Mock Chat Response");
-      const lastMessage = messages[messages.length - 1].content.toLowerCase();
-      let reply = "I'm your Cross-Chain AI assistant. I can help you with bridging, yield optimization, and portfolio strategy. How can I help today?";
-
-      if (lastMessage.includes("yield") || lastMessage.includes("apy")) {
-        reply = "Our Smart Yield Optimizer automatically rotates your capital between 5 top DeFi protocols (Aave, Compound, Curve, Uniswap, and Yearn) to capture the highest APY. It checks rates every hour!";
-      } else if (lastMessage.includes("bridge")) {
-        reply = "We support cross-chain bridging across Ethereum, Polygon, BSC, Avalanche, and Arbitrum. You can move assets seamlessly using our integrated bridge interface.";
-      } else if (lastMessage.includes("risk")) {
-        reply = "I analyze your token allocation and diversification. By spreading assets across chains, you reduce network-specific risk. Would you like a risk analysis of your current holdings?";
-      } else if (lastMessage.includes("gas") || lastMessage.includes("fee")) {
-        reply = "Gas fees vary by chain. Typically, Polygon and Arbitrum are much cheaper than Ethereum Mainnet. I recommend checking our gas tracker before large swaps.";
-      }
-
-      return res.json({ role: "assistant", content: reply });
+    if (!genAI) {
+      return res.status(503).json({ error: "Google API key not configured" });
     }
 
-    // --- REAL AI LOGIC ---
-    const systemPrompt = {
-      role: "system",
-      content: `You are the "Cross-Chain AI Portfolio Assistant", an expert in Web3, DeFi, and blockchain technology.
-      
-      Your project, Cross-Chain AI Portfolio, supports five major chains: Ethereum, Polygon, BSC, Avalanche, and Arbitrum.
-      
-      Key Features of the Project:
-      1. Cross-Chain Bridging: Allows moving assets between supported chains.
-      2. AI Portfolio Optimization: Analyzes holdings to suggest better risk-adjusted allocations.
-      3. Smart Yield Optimizer: A proprietary system that auto-switches capital between 5 DeFi protocols (Aave, Compound, Curve, Uniswap, Yearn) based on the highest APY.
-      4. Risk Analysis: Evaluates portfolio concentration and suggests diversification.
-      5. Gas Intelligence: Helps users understand fee differences between L1 and L2 chains.
-      
-      Guidelines:
-      - Be professional but friendly. Use crypto-friendly language.
-      - Provide beginner-friendly explanations for complex DeFi concepts.
-      - When asked about "highest APY" or "yield", mention the 5-protocol auto-switching logic.
-      - Keep responses concise and focused on helping the user navigate the platform.`
-    };
-
-    const completion = await openai.chat.completions.create({
-      messages: [systemPrompt, ...messages],
-      model: "gpt-4o-mini",
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: `You are the "Cross-Chain AI Portfolio Assistant", an expert in Web3, DeFi, and blockchain technology.
+    
+    Your project, Cross-Chain AI Portfolio, supports five major chains: Ethereum, Polygon, BSC, Avalanche, and Arbitrum.
+    
+    Key Features of the Project:
+    1. Cross-Chain Bridging: Allows moving assets between supported chains.
+    2. AI Portfolio Optimization: Analyzes holdings to suggest better risk-adjusted allocations.
+    3. Smart Yield Optimizer: A proprietary system that auto-switches capital between 5 DeFi protocols (Aave, Compound, Curve, Uniswap, Yearn) based on the highest APY.
+    4. Risk Analysis: Evaluates portfolio concentration and suggests diversification.
+    5. Gas Intelligence: Helps users understand fee differences between L1 and L2 chains.`
     });
 
-    res.json(completion.choices[0].message);
+    const history = messages.slice(0, -1).map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+
+    const chat = model.startChat({ history });
+
+    const result = await chat.sendMessage(messages[messages.length - 1].content);
+    res.json({ role: "assistant", content: result.response.text() });
 
   } catch (error) {
-    console.error("❌ Chat API Error Details:", {
-      message: error.message,
-      name: error.name,
-      status: error.status,
-      data: error.response?.data
-    });
-    res.status(500).json({
+    console.error("❌ Chat API Error:", error);
+    res.status(error.status || 500).json({
       error: "Failed to process chat request",
       details: error.message
     });

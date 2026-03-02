@@ -2,31 +2,30 @@ import { PortfolioData } from './walletService';
 import { type RiskPersonality, type LearningMode } from '@/contexts/ProfileContext';
 
 export interface AIAnalysis {
-    summary: string;
-    healthScore: number;
-    riskLevel: 'Low' | 'Medium' | 'High';
-    riskFactors: string[];
-    chainOutlook: Array<{
-        chain: string;
-        outlook: 'Great' | 'Good' | 'Neutral' | 'Caution';
-        reason: string;
-    }>;
-    analysis: {
-        diversification: string;
-        performance: string;
-        volatility: string;
+    wallet: string;
+    totalValue: number;
+    structuredAnalysis: {
+        portfolio_summary: string;
+        risk_assessment: string;
+        diversification_analysis: string;
+        chain_exposure_commentary: string;
+        optimization_recommendations: string;
     };
-    recommendations: Array<{
-        type: 'Buy' | 'Sell' | 'Hold';
-        asset: string;
-        reason: string;
-        confidence?: 'Low' | 'Medium' | 'High';
-        timeHorizon?: 'Short Term' | 'Medium Term' | 'Long Term' | 'Immediate';
-    }>;
-    topPick: {
-        asset: string;
-        reason: string;
+    analytics: {
+        environment: string;
+        total_value_usd: number;
+        active_chains: number;
+        chain_distribution: Record<string, number>;
+        asset_distribution: Record<string, number>;
+        stablecoin_ratio: number;
+        top_asset_concentration: number;
+        risk_score: number;
+        volatility_exposure_level: string;
+        insight_mode: string;
     };
+
+    // Legacy fields mapped for backward UI compatibility where needed
+    healthScore?: number;
 }
 
 export interface TokenPrice {
@@ -37,9 +36,6 @@ export interface TokenPrice {
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
 export const aiService = {
-    /**
-     * Fetch real-time prices for tokens from backend
-     */
     async fetchTokenPrices(ids: string[]): Promise<Record<string, TokenPrice>> {
         try {
             if (ids.length === 0) return {};
@@ -54,9 +50,6 @@ export const aiService = {
         }
     },
 
-    /**
-     * Generate AI analysis for the portfolio
-     */
     async generatePortfolioAnalysis(
         portfolio: PortfolioData,
         userProfile?: {
@@ -76,7 +69,14 @@ export const aiService = {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ portfolio, userProfile }),
+                body: JSON.stringify({
+                    portfolio,
+                    userProfile: {
+                        ...userProfile,
+                        insightMode: userProfile?.insightMode || 'Market Mode'
+                    },
+                    network: 'cross-chain'
+                }),
             });
 
             if (!response.ok) {
@@ -84,7 +84,13 @@ export const aiService = {
                 throw new Error(error.error || 'Failed to generate analysis');
             }
 
-            return await response.json();
+            const data = await response.json();
+
+            if (data.structuredAnalysis) {
+                data.healthScore = Math.max(0, 100 - (data.analytics?.risk_score || 0));
+            }
+
+            return data as AIAnalysis;
         } catch (error) {
             console.error('AI Analysis error:', error);
             throw error;

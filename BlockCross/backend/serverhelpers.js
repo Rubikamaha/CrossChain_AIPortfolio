@@ -6,6 +6,11 @@ export const CHAIN_INFO = {
   "8453": { name: "Base", symbol: "ETH" },
   "43114": { name: "Avalanche", symbol: "AVAX" },
   "56": { name: "BSC", symbol: "BNB" },
+  "250": { name: "Fantom", symbol: "FTM" },
+  "324": { name: "ZkSync Era", symbol: "ETH" },
+  "59144": { name: "Linea", symbol: "ETH" },
+  "81457": { name: "Blast", symbol: "ETH" },
+  "534352": { name: "Scroll", symbol: "ETH" },
   "11155111": { name: "Sepolia", symbol: "ETH" },
   "17000": { name: "Holesky", symbol: "ETH" },
   "80002": { name: "Polygon Amoy", symbol: "MATIC" },
@@ -13,7 +18,10 @@ export const CHAIN_INFO = {
   "421614": { name: "Arbitrum Sepolia", symbol: "ETH" },
   "11155420": { name: "Optimism Sepolia", symbol: "ETH" },
   "84532": { name: "Base Sepolia", symbol: "ETH" },
-  "43113": { name: "Avalanche Fuji", symbol: "AVAX" }
+  "43113": { name: "Avalanche Fuji", symbol: "AVAX" },
+  "300": { name: "ZkSync Sepolia", symbol: "ETH" },
+  "534351": { name: "Scroll Sepolia", symbol: "ETH" },
+  "168587773": { name: "Blast Sepolia", symbol: "ETH" }
 };
 
 // PRIMARY: Reliable Public RPC URLs (no key needed)
@@ -25,6 +33,11 @@ export const PRIMARY_RPC_URLS = {
   "8453": "https://base-rpc.publicnode.com",                                // Base
   "43114": "https://avalanche-rpc.publicnode.com",                          // Avalanche
   "56": "https://bsc-rpc.publicnode.com",                                   // BSC
+  "250": "https://rpc.ftm.tools",                                           // Fantom
+  "324": "https://mainnet.era.zksync.io",                                   // ZkSync Era
+  "59144": "https://rpc.linea.build",                                       // Linea
+  "81457": "https://rpc.blast.io",                                          // Blast
+  "534352": "https://rpc.scroll.io",                                        // Scroll
   "11155111": "https://rpc.sepolia.org",                                    // Sepolia
   "17000": "https://ethereum-holesky.publicnode.com",                       // Holesky
   "80002": "https://rpc-amoy.polygon.technology",                           // Polygon Amoy
@@ -32,7 +45,10 @@ export const PRIMARY_RPC_URLS = {
   "421614": "https://arbitrum-sepolia-rpc.publicnode.com",                  // Arbitrum Sepolia
   "11155420": "https://optimism-sepolia-rpc.publicnode.com",                // Optimism Sepolia
   "84532": "https://base-sepolia-rpc.publicnode.com",                       // Base Sepolia
-  "43113": "https://avalanche-fuji-rpc.publicnode.com"                      // Avalanche Fuji
+  "43113": "https://avalanche-fuji-rpc.publicnode.com",                     // Avalanche Fuji
+  "300": "https://sepolia.era.zksync.dev",                                  // ZkSync Sepolia
+  "534351": "https://sepolia-rpc.scroll.io",                                // Scroll Sepolia
+  "168587773": "https://sepolia.blast.io"                                   // Blast Sepolia
 };
 
 // FALLBACK: Alternative RPC providers
@@ -44,6 +60,11 @@ export const FALLBACK_RPC_URLS = {
   "8453": "https://base.api.onfinality.io/public",                          // Base Alt
   "43114": "https://avalanche.api.onfinality.io/public",                    // Avalanche Alt
   "56": "https://bsc.api.onfinality.io/public",                             // BSC Alt
+  "250": "https://rpcapi.fantom.network",                                   // Fantom Alt
+  "324": "https://zksync-era.blockpi.network/v1/rpc/public",                // ZkSync Era Alt
+  "59144": "https://linea.blockpi.network/v1/rpc/public",                   // Linea Alt
+  "81457": "https://blast.blockpi.network/v1/rpc/public",                   // Blast Alt
+  "534352": "https://scroll.blockpi.network/v1/rpc/public",                 // Scroll Alt
   "11155111": "https://rpc2.sepolia.org",                                   // Sepolia Alt
   "17000": "https://ethereum-holesky-rpc.publicnode.com",                   // Holesky Alt
   "80002": "https://polygon-amoy-rpc.publicnode.com",                       // Polygon Amoy Alt
@@ -51,17 +72,20 @@ export const FALLBACK_RPC_URLS = {
   "421614": "https://arbitrum-sepolia.publicnode.com",                      // Arbitrum Sepolia Alt
   "11155420": "https://optimism-sepolia.publicnode.com",                    // Optimism Sepolia Alt
   "84532": "https://base-sepolia.publicnode.com",                           // Base Sepolia Alt
-  "43113": "https://avalanche-fuji.publicnode.com"                          // Avalanche Fuji Alt
+  "43113": "https://avalanche-fuji.publicnode.com",                         // Avalanche Fuji Alt
+  "300": "https://zksync-era-sepolia.blockpi.network/v1/rpc/public",        // ZkSync Sepolia Alt
+  "534351": "https://scroll-sepolia.blockpi.network/v1/rpc/public",         // Scroll Sepolia Alt
+  "168587773": "https://blast-sepolia.blockpi.network/v1/rpc/public"        // Blast Sepolia Alt
 };
 
 export function getRpcUrl(chainIdStr) {
   // Try primary RPC first
   const primaryUrl = PRIMARY_RPC_URLS[chainIdStr];
   if (primaryUrl) return { url: primaryUrl, source: "PublicNode" };
-  
+
   // Fallback to alternative RPC
   const fallbackUrl = FALLBACK_RPC_URLS[chainIdStr];
   if (fallbackUrl) return { url: fallbackUrl, source: "OnFinality" };
-  
+
   return null;
 }
