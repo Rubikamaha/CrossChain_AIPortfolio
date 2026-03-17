@@ -4,12 +4,13 @@ import fetch from "node-fetch";
 import cors from "cors";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+
+dotenv.config();
+
 import connectDB, { isDBConnected } from "./db.js";
 import InsightHistoryModel from "./models/InsightHistory.js";
 import swapRoute from "./routes/swapRoute.js";
 import aiInsightsRoute from "./routes/aiInsights.js";
-
-dotenv.config();
 
 // Connect to MongoDB
 connectDB();

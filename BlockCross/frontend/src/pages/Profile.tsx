@@ -5,7 +5,8 @@ import { Shield, Settings, Bell, BarChart3, Info, ExternalLink, Brain, Target, H
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useProfile } from '@/contexts/ProfileContext';
-import { openConnectModal, disconnect as walletDisconnect } from '@/lib/walletConnect';
+import { openConnectModal } from '@/lib/walletConnect';
+import { useWallet } from '@/hooks/useWallet';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
 
@@ -19,13 +20,12 @@ const Profile = () => {
     } = useProfile();
 
     const { toast } = useToast();
-    const [account, setAccount] = useState<string | null>(null);
-    const [isConnected, setIsConnected] = useState(false);
+    const { isConnected, account, disconnect: walletDisconnect } = useWallet();
     const [network, setNetwork] = useState<string | null>(null);
     const [provider, setProvider] = useState<string>('Unknown');
 
     useEffect(() => {
-        const updateWalletInfo = async () => {
+        const updateNetworkInfo = async () => {
             // @ts-ignore
             const eth = (window as any).ethereum;
             if (eth) {
@@ -33,28 +33,24 @@ const Profile = () => {
                 else if (eth.isWalletConnect) setProvider('WalletConnect');
 
                 try {
-                    const accounts = await eth.request({ method: 'eth_accounts' });
-                    if (accounts && accounts.length > 0) {
-                        setAccount(accounts[0]);
-                        setIsConnected(true);
-
-                        const chainId = await eth.request({ method: 'eth_chainId' });
-                        // Simple mapping or use a config
-                        setNetwork(chainId === '0x1' ? 'Ethereum Mainnet' : `Chain ID: ${parseInt(chainId, 16)}`);
-                    }
+                    const chainId = await eth.request({ method: 'eth_chainId' });
+                    setNetwork(chainId === '0x1' ? 'Ethereum Mainnet' : `Chain ID: ${parseInt(chainId, 16)}`);
                 } catch (e) {
                     console.error(e);
                 }
             }
         };
-        updateWalletInfo();
-    }, []);
+        if (isConnected) {
+            updateNetworkInfo();
+        } else {
+            setNetwork(null);
+            setProvider('Unknown');
+        }
+    }, [isConnected]);
 
     const handleDisconnect = async () => {
         try {
             await walletDisconnect();
-            setIsConnected(false);
-            setAccount(null);
             toast({ title: 'Wallet Disconnected' });
         } catch (err) {
             toast({ title: 'Disconnect failed', variant: 'destructive' });
@@ -117,7 +113,7 @@ const Profile = () => {
                     </div>
                     <div className="flex flex-col md:flex-row items-center gap-8">
                         <div className="relative w-32 h-32 flex items-center justify-center">
-                            <svg className="w-full h-full transform -rotate-90">
+                            <svg className="w-full h-full transform -rotate-90" width="128" height="128">
                                 <circle cx="64" cy="64" r="58" className="stroke-secondary" strokeWidth="8" fill="none" />
                                 <circle
                                     cx="64" cy="64" r="58"

@@ -9,9 +9,10 @@ interface NavbarProps {
   account?: string | null;
   onConnect: () => void;
   onDisconnect?: () => void;
+  mode?: 'DEMO' | 'LIVE';
 }
 
-export function Navbar({ isConnected, account, onConnect, onDisconnect }: NavbarProps) {
+export function Navbar({ isConnected, account, onConnect, onDisconnect, mode = 'DEMO' }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -46,11 +47,18 @@ export function Navbar({ isConnected, account, onConnect, onDisconnect }: Navbar
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            {/* Mode Indicator */}
+            <div className={`hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${
+              mode === 'DEMO' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-green-500/10 border-green-500/20 text-green-500'
+            }`}>
+              {mode === 'DEMO' ? 'Demo Mode' : 'Live Mode'}
+            </div>
+
             {/* Wallet Status */}
             <div className="hidden sm:flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success animate-pulse' : 'bg-muted-foreground'}`} />
               <span className="text-sm text-muted-foreground">
-                {isConnected ? 'Connected' : 'Not Connected'}
+                {isConnected ? 'Live' : 'Connect'}
               </span>
             </div>
 

@@ -21,8 +21,6 @@ export function useWallet() {
 
     const connect = () => {
         openConnectModal();
-        // optimistic update
-        setIsConnected(true);
     };
 
     const disconnect = async () => {

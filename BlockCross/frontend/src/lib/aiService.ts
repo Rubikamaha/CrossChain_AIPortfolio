@@ -70,6 +70,7 @@ export const aiService = {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    wallet: portfolio.address || '0x0000000000000000000000000000000000000000',
                     portfolio,
                     userProfile: {
                         ...userProfile,

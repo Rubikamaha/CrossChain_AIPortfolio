@@ -1,7 +1,7 @@
 // backend/routes/swapRoute.js
 import express from "express";
 import fetch from "node-fetch";
-import { parseSwapIntent } from "../services/aiIntentParser.js";
+import { parseIntent } from "../services/nlpService.js";
 import { calculateSwapAmount } from "../services/swapCalculator.js";
 import { getSwapQuote, getMockQuote } from "../services/swapService.js";
 
@@ -100,7 +100,7 @@ router.post("/api/ai-swap", async (req, res) => {
         console.log(`🤖 AI Swap request: "${userCommand}" from ${userAddress || "anonymous"}`);
 
         // Step 1: Parse intent with Gemini AI
-        const parsedIntent = await parseSwapIntent(userCommand);
+        const parsedIntent = await parseIntent(userCommand);
         if (parsedIntent.error) {
             return res.status(400).json({
                 error: parsedIntent.error,

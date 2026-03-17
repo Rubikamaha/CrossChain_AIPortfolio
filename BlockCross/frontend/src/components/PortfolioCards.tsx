@@ -6,6 +6,7 @@ import { useNetworkMode } from '@/contexts/NetworkModeContext';
 import { getAllChains } from '@/lib/chainConfig';
 import type { AIAnalysis } from '@/lib/aiService';
 import { useProfile } from '@/contexts/ProfileContext';
+import { Link } from 'react-router-dom';
 
 const USD_TO_INR = 84.5; // Estimated exchange rate
 
@@ -229,7 +230,7 @@ export function PortfolioCards({ portfolioData, isLoading, isConnected, analysis
         </div>
 
         {/* Global Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-12">
           <StatCard
             title="Net Worth"
             value={isConnected ? formatCurrency(totalNetWorth, preferredCurrency) : 'Connect Wallet'}
@@ -254,6 +255,18 @@ export function PortfolioCards({ portfolioData, isLoading, isConnected, analysis
             icon={<ImageIcon className="w-6 h-6 text-purple-500" />}
             isLoading={isLoading}
           />
+
+          <Link to="/rebalance">
+            <StatCard
+              title="Smart Rebalance"
+              value={isConnected ? "Optimize" : "-"}
+              subtitle={isConnected ? "AI Allocation Tuning" : "Connect to optimize"}
+              icon={<Target className="w-6 h-6 text-accent" />}
+              isLoading={isLoading}
+              isClickable={isConnected}
+              hint={learningMode === 'Beginner' ? "AI helps you maintain your target risk-adjusted allocation across all chains." : undefined}
+            />
+          </Link>
 
           <div onClick={(!analysis && !isAnalyzing && onAnalyze) ? onAnalyze : undefined}>
             <StatCard

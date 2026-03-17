@@ -27,6 +27,7 @@ export interface ChainBalance {
 }
 
 export interface PortfolioData {
+    address: string;
     totalValue: number;
     totalTokenValue: number;
     totalNftValue: number; // Placeholder for now, mostly count based
@@ -290,6 +291,7 @@ export async function getPortfolioData(
     console.log('Total Portfolio Value:', totalValue);
 
     return {
+        address,
         totalValue,
         totalTokenValue,
         totalNftValue,

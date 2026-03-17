@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Navbar } from '@/components/Navbar';
 import { Hero } from '@/components/Hero';
 import { PortfolioCards } from '@/components/PortfolioCards';
 import { OpportunityFeed } from '@/components/OpportunityFeed';
@@ -11,7 +10,6 @@ import { Footer } from '@/components/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { useNetworkMode } from '@/contexts/NetworkModeContext';
-import { openConnectModal, disconnect as walletDisconnect, modal } from '@/lib/walletConnect';
 import { aiService, type AIAnalysis } from '@/lib/aiService';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useWallet } from '@/hooks/useWallet';
@@ -124,9 +122,7 @@ const Index = () => {
         Connection: {isConnected ? '✅' : '❌'} | Auth: {account ? account.slice(0, 6) : 'None'} | Mode: {networkMode}
       </div>
 
-      <Navbar isConnected={isConnected} account={account} onConnect={handleConnect} onDisconnect={handleDisconnect} />
-
-      <main>
+      <main className="pt-16">
         <Hero onConnect={handleConnect} />
 
         {/* Dashboard sections */}

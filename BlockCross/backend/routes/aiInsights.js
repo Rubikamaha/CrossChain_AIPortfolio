@@ -1,15 +1,9 @@
 import express from "express";
 import fetch from "node-fetch";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CHAIN_INFO, getRpcUrl } from "../serverhelpers.js";
 import AiInsightModel from "../models/AiInsight.js";
 
 const router = express.Router();
-
-let genAI;
-if (process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY) {
-  genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
-}
 
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || "_1DrgpgoYg1fQ2ohpmd8v"; // fallback to known working for test
 
@@ -71,16 +65,25 @@ async function fetchTokenPricesBySymbol(symbolsSet) {
 
 router.post("/", async (req, res) => {
   try {
-    const { wallet, insightMode = "market" } = req.body;
-    if (!wallet) return res.status(400).json({ error: "Wallet address required" });
+    const { wallet, insightMode = "market", portfolio } = req.body;
+    if (!wallet && !portfolio) return res.status(400).json({ error: "Wallet address or portfolio required" });
 
     // 1. Fetch balances
-    const chainsToCheck = Object.keys(CHAIN_INFO);
-    const balances = [];
+    let balances = [];
     let hasTestnet = false;
     const foundSymbols = new Set();
 
-    const fetchPromises = chainsToCheck.map(async (chainIdStr) => {
+    if (portfolio && portfolio.balances && portfolio.balances.length > 0) {
+      balances = portfolio.balances;
+      balances.forEach(b => {
+        foundSymbols.add(b.symbol);
+        if (b.chain && (b.chain.toLowerCase().includes("sepolia") || b.chain.toLowerCase().includes("amoy") || b.chain.toLowerCase().includes("test"))) {
+          hasTestnet = true;
+        }
+      });
+    } else {
+      const chainsToCheck = Object.keys(CHAIN_INFO);
+      const fetchPromises = chainsToCheck.map(async (chainIdStr) => {
       const info = CHAIN_INFO[chainIdStr];
       const isTestnet = info.name.toLowerCase().includes("sepolia") ||
         info.name.toLowerCase().includes("amoy") ||
@@ -146,16 +149,17 @@ router.post("/", async (req, res) => {
               if (bal > 0) {
                 balances.push({ chainIdStr, chain: info.name, symbol: info.symbol, value: bal, isNative: true });
                 foundSymbols.add(info.symbol);
-              }
+            }
             }
           }
         } catch (e) {
           console.warn(`RPC fetch failed for ${info.name}:`, e.message);
         }
       }
-    });
+      });
 
-    await Promise.allSettled(fetchPromises);
+      await Promise.allSettled(fetchPromises);
+    }
 
     if (balances.length === 0) {
       return res.json({ message: "No assets detected to analyze." });
@@ -239,49 +243,14 @@ router.post("/", async (req, res) => {
       insight_mode: insightMode
     };
 
-    // 4. Call Gemini
-    if (!genAI) {
-      return res.status(500).json({ error: "Gemini API key is not configured." });
-    }
-
-    const systemPrompt = `You are a professional cross-chain crypto portfolio advisor.
-
-Analyze ONLY based on the structured portfolio data provided.
-Do not assume missing data.
-Do not hallucinate prices or assets.
-Do not invent data.
-Base insights strictly on allocation percentages, risk score, and diversification metrics.
-
-Return output strictly in valid JSON format.
-Do NOT include markdown.
-Do NOT include explanations outside JSON.
-
-Return this EXACT structure:
-{
-  "portfolio_summary": "string",
-  "risk_assessment": "string",
-  "diversification_analysis": "string",
-  "chain_exposure_commentary": "string",
-  "optimization_recommendations": "string"
-}`;
-
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: systemPrompt,
-      generationConfig: { responseMimeType: "application/json" }
-    });
-
-    const aiRes = await model.generateContent(JSON.stringify(aiPayload));
-    let aiText = aiRes.response.text().trim();
-    if (aiText.startsWith('\`\`\`json')) aiText = aiText.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
-
-    let aiParsed;
-    try {
-      aiParsed = JSON.parse(aiText);
-    } catch (e) {
-      console.error("Failed to parse AI output:", aiText);
-      throw new Error("Invalid AI output format");
-    }
+    // 4. Local Insights Logic
+    const aiParsed = {
+      portfolio_summary: `Your portfolio is active across ${activeChainsCount} chains. Total estimated value is $${totalValueUsd.toFixed(2)}.`,
+      risk_assessment: `Calculated Risk Score is ${riskScore}/100 with ${volatilityExposure} volatility exposure. Top asset concentration is ${topAssetConcentration.toFixed(2)}%.`,
+      diversification_analysis: stablecoinRatio >= 20 ? "Healthy stablecoin reserve cushion." : "Portfolio holds minimal stablecoins, relying heavily on volatile assets.",
+      chain_exposure_commentary: activeChainsCount > 1 ? "Assets are distributed across multiple networking environments." : "Assets are heavily concentrated on a single network.",
+      optimization_recommendations: topAssetConcentration > 70 ? "Consider rebalancing using the Smart Rebalance tool to reduce isolated asset concentration." : "Maintain current allocations or tune slightly using Smart Rebalance."
+    };
 
     const clientResponse = {
       wallet,
@@ -308,50 +277,64 @@ router.post("/analyze", async (req, res) => {
       return res.status(400).json({ error: "Portfolio data required" });
     }
 
-    // 1. Prepare data for AI
-    const portfolioSummary = portfolio.balances.map(b =>
-      `${b.symbol}: ${b.value} (${b.chain}) - $${b.valueUsd?.toFixed(2) || 0}`
-    ).join("\n");
+    // Determine Target Allocations based on Risk
+    let targetVolatile = 50; 
+    let targetStable = 50;
+    if (riskPersonality === "Aggressive") { targetVolatile = 80; targetStable = 20; }
+    else if (riskPersonality === "Conservative") { targetVolatile = 20; targetStable = 80; }
 
-    const systemPrompt = `You are a cross-chain portfolio rebalancing AI. 
-Analyze the user's portfolio against their ${riskPersonality} risk profile.
-Identify if the portfolio has drifted from the target allocation for ${riskPersonality}.
+    const stablecoinSymbols = ["usdc", "usdt", "dai", "fdusd", "frax", "tusd", "usde"];
+    
+    let volatileValue = 0;
+    let stableValue = 0;
+    const currentAllocation = {};
 
-Return output STRICTLY in valid JSON format.
-JSON Structure:
-{
-  "healthScore": number (0-100),
-  "riskScore": number (0-100),
-  "driftDetected": boolean,
-  "explanation": "Detailed professional explanation",
-  "currentAllocation": { "Symbol": percentage },
-  "targetAllocation": { "Symbol": percentage },
-  "actions": [
-    { "id": 1, "action": "Buy"|"Sell", "asset": "Symbol", "amount": "0.1", "valueUsd": 100, "reason": "why" }
-  ]
-}
-
-Target Allocations for ${riskPersonality}:
-- Aggressive: 80% Volatile (ETH/SOL/BNB), 20% Stable
-- Moderate: 50% Volatile, 50% Stable
-- Conservative: 20% Volatile, 80% Stable`;
-
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: systemPrompt,
-      generationConfig: { responseMimeType: "application/json" }
+    portfolio.balances.forEach(b => {
+      currentAllocation[b.symbol] = (currentAllocation[b.symbol] || 0) + (b.valueUsd || 0);
+      if (stablecoinSymbols.includes(b.symbol.toLowerCase())) {
+         stableValue += (b.valueUsd || 0);
+      } else {
+         volatileValue += (b.valueUsd || 0);
+      }
     });
 
-    const prompt = `Portfolio:\n${portfolioSummary}\nTotal Value: $${portfolio.totalValue}\nRisk: ${riskPersonality}`;
-    const aiRes = await model.generateContent(prompt);
+    const totalVal = portfolio.totalValue > 0 ? portfolio.totalValue : 1;
+    for (const sym of Object.keys(currentAllocation)) {
+        currentAllocation[sym] = Number(((currentAllocation[sym] / totalVal) * 100).toFixed(2));
+    }
 
-    let aiText = aiRes.response.text().trim();
-    if (aiText.startsWith('\`\`\`json')) aiText = aiText.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
+    const currentVolatilePct = (volatileValue / totalVal) * 100;
+    const currentStablePct = (stableValue / totalVal) * 100;
 
-    res.json(JSON.parse(aiText));
+    const driftDetected = Math.abs(currentVolatilePct - targetVolatile) > 5;
+    const actions = [];
+
+    if (driftDetected) {
+       // Super simple heuristic
+       if (currentVolatilePct > targetVolatile) {
+           const sellAmtUsd = (currentVolatilePct - targetVolatile) / 100 * totalVal;
+           actions.push({ id: 1, action: "Sell", asset: "VolatileAssets", amount: "Various", valueUsd: sellAmtUsd.toFixed(2), reason: "Reduce volatile exposure to meet target." });
+       } else {
+           const buyAmtUsd = (targetVolatile - currentVolatilePct) / 100 * totalVal;
+           actions.push({ id: 1, action: "Buy", asset: "VolatileAssets", amount: "Various", valueUsd: buyAmtUsd.toFixed(2), reason: "Increase volatile exposure to meet target." });
+       }
+    }
+
+    const parsedData = {
+      healthScore: driftDetected ? 60 : 95,
+      riskScore: currentVolatilePct,
+      driftDetected,
+      explanation: driftDetected ? `Your portfolio has drifted ${Math.abs(currentVolatilePct - targetVolatile).toFixed(2)}% away from your ${riskPersonality} target.` : "Portfolio is closely aligned with your target risk profile.",
+      currentAllocation,
+      targetAllocation: { Volatile: targetVolatile, Stable: targetStable },
+      actions
+    };
+    
+    res.json(parsedData);
+
   } catch (err) {
     console.error("Rebalance Analysis Error:", err);
-    res.status(500).json({ error: "Failed to analyze rebalancing needs" });
+    res.status(500).json({ error: "Analysis Failed", message: err.message || "Failed to analyze rebalancing needs" });
   }
 });
 
