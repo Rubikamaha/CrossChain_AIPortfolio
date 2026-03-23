@@ -9,7 +9,7 @@ const UNISWAP = {
   },
   11155111: { // Sepolia testnet
     router:  "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48",
-    quoter:  "0xEd1f6473345F45b75833fd55D191b246AE8A6Ca",
+    quoter:  "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3",
     factory: "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
   },
 };

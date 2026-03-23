@@ -1,0 +1,18 @@
+﻿
+> vite_react_shadcn_ts@0.0.0 lint
+> eslint .
+
+
+C:\Blockcross\BlockCross\frontend\src\lib\walletConnect.ts
+  110:9  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+  126:5  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+
+C:\Blockcross\BlockCross\frontend\src\services\walletService.ts
+  13:73  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  25:73  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  35:73  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  45:73  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+Γ£û 6 problems (0 errors, 6 warnings)
+  0 errors and 6 warnings potentially fixable with the `--fix` option.
+
