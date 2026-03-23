@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { usePortfolioData } from '@/hooks/usePortfolioData';
-import { useWallet } from '@/hooks/useWallet';
+import { usePortfolioContext } from '@/contexts/PortfolioContext';
 import { Brain, Sparkles, AlertTriangle, Loader2, PieChart, ShieldAlert, Heart, TrendingUp, Wallet, Info } from 'lucide-react';
 import { insightsService, PortfolioMetrics } from '@/services/insightsService';
 import { geminiInsightsService, AIInsightResponse } from '@/services/geminiInsightsService';
@@ -8,7 +7,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/ui/button';
 
 export default function InsightsPage() {
-  const { data: activeData, mode, isConnected, isLoading: isPortfolioLoading } = usePortfolioData();
+  const { data: activeData, mode, isConnected, isLoading: isPortfolioLoading } = usePortfolioContext();
   const { settings } = useSettings();
   const [metrics, setMetrics] = useState<any>(null);
   const [analysis, setAnalysis] = useState<AIInsightResponse | null>(null);

@@ -8,15 +8,14 @@ import { AssetsTable } from '@/components/AssetsTable';
 import { AlertsPanel } from '@/components/AlertsPanel';
 import { Footer } from '@/components/Footer';
 import { useToast } from '@/hooks/use-toast';
-import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { useNetworkMode } from '@/contexts/NetworkModeContext';
 import { aiService, type AIAnalysis } from '@/lib/aiService';
 import { useProfile } from '@/contexts/ProfileContext';
-import { useWallet } from '@/hooks/useWallet';
+import { usePortfolioContext } from '@/contexts/PortfolioContext';
 import { mockPortfolioData } from '@/data/mockData';
 
 const Index = () => {
-  const { isConnected, account, connect, disconnect } = useWallet();
+  const { isConnected, account, connect, disconnect, data: contextData, mode } = usePortfolioContext();
   const { toast } = useToast();
   const { networkMode } = useNetworkMode();
   const {
@@ -33,18 +32,14 @@ const Index = () => {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Fetch wallet balances when connected
-  const { portfolioData, isLoading, error, refresh } = useWalletBalances({
-    address: account,
-    networkMode,
-    enabled: isConnected && !!account,
-  });
-
-  // USE MOCK DATA IF DISCONNECTED (Demo Mode)
-  // We treat the app as "Connected" for the dashboard components to show the data
-  const activeData = isConnected ? portfolioData : (mockPortfolioData as unknown as import('@/lib/walletService').PortfolioData);
+  // Use the data from the context or fallback to mock
+  const activeData = isConnected ? contextData : (mockPortfolioData as unknown as import('@/lib/walletService').PortfolioData);
   const showDemoMode = !isConnected;
-  const dashboardConnectedState = true; // Always show dashboard content (Real or Mock)
+  const dashboardConnectedState = true; 
+
+  // Track if we're loading (can refine this based on context)
+  const isLoading = isConnected && !contextData;
+  const error = null; // Can extract error from context if added
 
   // Calculate and update health score when portfolio data is available
   useEffect(() => {

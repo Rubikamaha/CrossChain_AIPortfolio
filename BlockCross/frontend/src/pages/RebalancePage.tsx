@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { usePortfolioData } from "@/hooks/usePortfolioData";
-import { useWallet } from "@/hooks/useWallet";
+import { usePortfolioContext } from "@/contexts/PortfolioContext";
 import { rebalanceService, AssetInput, RebalanceResult } from "@/services/rebalanceService";
 import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
@@ -11,8 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 export default function RebalancePage() {
-  const { isConnected } = useWallet();
-  const { data: portfolioData, mode, isLoading } = usePortfolioData();
+  const { isConnected, data: portfolioData, mode, isLoading } = usePortfolioContext();
   const { settings } = useSettings();
   const { toast } = useToast();
 

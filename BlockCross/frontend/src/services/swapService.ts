@@ -1,201 +1,203 @@
 import { ethers } from "ethers";
-import { NETWORKS, NETWORK_MODE } from "../config/networkConfig";
-import { ParsedIntent } from "./geminiParser";
-import { priceService } from "./priceService";
 
-// Standard ERC20 ABI for USDC
-const erc20ABI = [
-  "function allowance(address owner, address spender) external view returns (uint256)",
+// Uniswap V3 addresses per network
+const UNISWAP = {
+  1: { // Mainnet
+    router:  "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+    quoter:  "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+    factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+  },
+  11155111: { // Sepolia testnet
+    router:  "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48",
+    quoter:  "0xEd1f6473345F45b75833fd55D191b246AE8A6Ca",
+    factory: "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
+  },
+};
+
+// Common token addresses per network
+export const TOKENS: Record<number, Record<string, { address: string; decimals: number; name: string }>> = {
+  1: {
+    ETH:  { address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", decimals: 18, name: "Wrapped ETH" }, // WETH
+    USDC: { address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6,  name: "USD Coin" },
+    USDT: { address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6,  name: "Tether" },
+    WBTC: { address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", decimals: 8,  name: "Wrapped BTC" },
+    DAI:  { address: "0x6B175474E89094C44Da98b954EedeAC495271d0F", decimals: 18, name: "Dai" },
+    UNI:  { address: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984", decimals: 18, name: "Uniswap" },
+    LINK: { address: "0x514910771AF9Ca656af840dff83E8264EcF986CA", decimals: 18, name: "Chainlink" },
+  },
+  11155111: { // Sepolia — Uniswap's official testnet token list
+    ETH:  { address: "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14", decimals: 18, name: "Wrapped ETH" },
+    USDC: { address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", decimals: 6,  name: "USD Coin" },
+    DAI:  { address: "0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357", decimals: 18, name: "Dai" },
+    UNI:  { address: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984", decimals: 18, name: "Uniswap" },
+  },
+};
+
+const QUOTER_ABI = [
+  "function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)",
+];
+
+const ROUTER_ABI = [
+  "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)",
+];
+
+const ERC20_ABI = [
   "function approve(address spender, uint256 amount) external returns (bool)",
-  "function balanceOf(address account) external view returns (uint256)",
-  "function decimals() external view returns (uint8)"
+  "function allowance(address owner, address spender) view returns (uint256)",
 ];
 
-const routerABI = [
-  "function getAmountsOut(uint amountIn, address[] calldata path) view returns (uint[] memory amounts)",
-  "function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) payable returns (uint[] memory amounts)",
-  "function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) returns (uint[] memory amounts)",
-  "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) returns (uint[] memory amounts)"
-];
-
-const UNISWAP_V2_ROUTER_ADDRESS = "0x7a250d5630B4cF539739dF2C5dAcabF2488D";
-const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0E5C4F27eAD9083C756Cc2";
-const USDC_ADDRESS = "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
-
-/**
- * Fetches a simulated quote for testnet
- * @param amount Amount to swap
- * @returns Estimated USDC output
- */
-export async function getTestnetQuote(amount: number) {
-  const prices = await priceService.getPrices();
-  const ethPrice = prices.ETH || 2500;
-  return amount * ethPrice;
+export interface SwapPreview {
+  fromSymbol: string;
+  toSymbol: string;
+  amountIn: string;
+  amountOutMin: string;
+  amountOutFormatted: string;
+  exchangeRate: string;
+  priceImpact: string;
+  networkName: string;
+  isTestnet: boolean;
 }
 
-/**
- * Executes ETH -> USDC swap (Mainnet real, Testnet simulated)
- * @param amount Amount of ETH to swap
- * @returns transaction hash
- */
-export async function swapETHToUSDC(amount: number) {
-  if (!window.ethereum) throw new Error("Wallet not connected");
-
-  const provider = new ethers.BrowserProvider(window.ethereum as any);
-  const signer = await provider.getSigner();
-  const network = await provider.getNetwork();
-
-  // Testnet Mode: Simulation
-  if (network.chainId !== 1n) {
-    console.log("Testnet Mode — Simulating swap...");
-    // Simulation delay is handled in the UI component as per requirements
-    return "0xTESTNET123456789";
-  }
-
-  // Mainnet Mode: Real Swap
-  const router = new ethers.Contract(UNISWAP_V2_ROUTER_ADDRESS, routerABI, signer);
-  const userAddress = await signer.getAddress();
-  const path = [WETH_ADDRESS, USDC_ADDRESS];
-  const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
-  const amountInWei = ethers.parseEther(amount.toString());
-
-  let amountsOut;
-  try {
-    amountsOut = await router.getAmountsOut(amountInWei, path);
-  } catch (err) {
-    throw new Error("Transaction failed: Unable to fetch market quote. Ensure there is enough liquidity.");
-  }
-
-  const slippageMultiplier = 99n;
-  const amountOutMin = (amountsOut[1] * slippageMultiplier) / 100n;
-
-  try {
-    const tx = await router.swapExactETHForTokens(
-      amountOutMin,
-      path,
-      userAddress,
-      deadline,
-      { value: amountInWei }
-    );
-
-    const receipt = await tx.wait();
-    return receipt.hash;
-  } catch (err: any) {
-    if (err.code === 4001 || err.message.includes("rejected")) {
-      throw new Error("Transaction failed: Transaction was rejected by user.");
-    }
-    throw new Error(`Transaction failed: ${err.message || "Unknown error occurred"}`);
-  }
+export interface SwapResult {
+  txHash: string;
+  explorerUrl: string;
+  isTestnet: boolean;
 }
 
-/**
- * Executes a token swap based on the passed intent
- * @param intent structured swap intent (must have amountValue)
- * @returns Web3 transaction receipt/hash
- */
-export async function executeSwap(intent: ParsedIntent) {
-  if (!window.ethereum) throw new Error("Please install MetaMask to execute swaps.");
+export async function getSwapPreview(
+  fromSymbol: string,
+  toSymbol: string,
+  amountIn: string
+): Promise<SwapPreview> {
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const network = await provider.getNetwork();
+  const chainId = Number(network.chainId);
 
-  const provider = new ethers.BrowserProvider(window.ethereum as any);
+  const config = UNISWAP[chainId as keyof typeof UNISWAP];
+  if (!config) throw new Error(`Unsupported network (chainId: ${chainId}). Switch to Mainnet or Sepolia.`);
+
+  const tokens = TOKENS[chainId];
+  const tokenIn = fromSymbol === "ETH" ? tokens["ETH"] : tokens[fromSymbol];
+  const tokenOut = toSymbol === "ETH" ? tokens["ETH"] : tokens[toSymbol];
+
+  if (!tokenIn || !tokenOut) throw new Error(`Token ${fromSymbol} or ${toSymbol} not supported on this network`);
+
+  const amountInWei = ethers.parseUnits(amountIn, tokenIn.decimals);
+
+  // Get on-chain quote from Uniswap quoter (read-only, no gas)
+  const quoter = new ethers.Contract(config.quoter, QUOTER_ABI, provider);
+  let amountOut: bigint;
+  try {
+    amountOut = await quoter.quoteExactInputSingle.staticCall(
+      tokenIn.address,
+      tokenOut.address,
+      3000, // 0.3% fee tier
+      amountInWei,
+      0
+    );
+  } catch {
+    // Fallback: try 1% fee tier (some pairs only have this)
+    amountOut = await quoter.quoteExactInputSingle.staticCall(
+      tokenIn.address,
+      tokenOut.address,
+      10000,
+      amountInWei,
+      0
+    );
+  }
+
+  const amountOutFormatted = ethers.formatUnits(amountOut, tokenOut.decimals);
+  // 0.5% slippage tolerance
+  const amountOutMin = (amountOut * 995n / 1000n).toString();
+  const rate = (parseFloat(amountOutFormatted) / parseFloat(amountIn)).toFixed(4);
+
+  return {
+    fromSymbol,
+    toSymbol,
+    amountIn,
+    amountOutMin,
+    amountOutFormatted: parseFloat(amountOutFormatted).toFixed(6),
+    exchangeRate: `1 ${fromSymbol} = ${rate} ${toSymbol}`,
+    priceImpact: "< 0.1%",
+    networkName: chainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet",
+    isTestnet: chainId !== 1,
+  };
+}
+
+export async function executeSwap(
+  fromSymbol: string,
+  toSymbol: string,
+  amountIn: string,
+  amountOutMin: string
+): Promise<SwapResult> {
+  const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   const network = await provider.getNetwork();
+  const chainId = Number(network.chainId);
 
-  const config = NETWORKS[NETWORK_MODE][Number(network.chainId)];
-  if (!config) throw new Error(`Unsupported network: Switch to ${NETWORK_MODE} ${Object.values(NETWORKS[NETWORK_MODE]).map((n: any) => n.name).join(' or ')}`);
+  const config = UNISWAP[chainId as keyof typeof UNISWAP];
+  if (!config) throw new Error("Unsupported network");
 
-  const router = new ethers.Contract(config.router, routerABI, signer);
-  const userAddress = await signer.getAddress();
+  const tokens = TOKENS[chainId];
+  const tokenIn = tokens[fromSymbol];
+  const tokenOut = tokens[toSymbol];
+  const isETHIn = fromSymbol === "ETH";
+  const address = await signer.getAddress();
+  const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 min
 
-  const isEthIn = intent.tokenIn.toUpperCase() === "ETH";
-  const isEthOut = intent.tokenOut?.toUpperCase() === "ETH";
+  const amountInWei = ethers.parseUnits(amountIn, tokenIn.decimals);
+  const router = new ethers.Contract(config.router, ROUTER_ABI, signer);
 
-  // Build routing path
-  const path = [];
-  if (isEthIn) {
-    path.push(config.weth || config.usdc); // WETH placeholder
-    path.push(config.usdc);
-  } else if (isEthOut) {
-    path.push(config.usdc);
-    path.push(config.weth || config.usdc);
+  let tx: ethers.TransactionResponse;
+
+  if (isETHIn) {
+    // ETH → Token: send ETH as msg.value, tokenIn is WETH
+    tx = await router.exactInputSingle(
+      {
+        tokenIn: tokenIn.address,
+        tokenOut: tokenOut.address,
+        fee: 3000,
+        recipient: address,
+        deadline,
+        amountIn: amountInWei,
+        amountOutMinimum: amountOutMin,
+        sqrtPriceLimitX96: 0,
+      },
+      { value: amountInWei } // MetaMask will show this ETH amount
+    );
   } else {
-    throw new Error("Only ETH <-> USDC pairs are supported by this assistant.");
-  }
+    // Token → Token or Token → ETH: need ERC20 approval first
+    const erc20 = new ethers.Contract(tokenIn.address, ERC20_ABI, signer);
+    const allowance = await erc20.allowance(address, config.router);
 
-  // Determine Exact Amount In
-  let amountInOptions: { value?: bigint, amountIn?: bigint } = {};
-
-  if (isEthIn) {
-    const amountInWei = ethers.parseEther(intent.amountValue.toString());
-    amountInOptions = { value: amountInWei };
-  } else {
-    const amountInWei = ethers.parseUnits(intent.amountValue.toString(), 6); // USDC = 6 dec
-    amountInOptions = { amountIn: amountInWei };
-
-    // Handle USDC Approval
-    const usdcContract = new ethers.Contract(config.usdc, erc20ABI, signer);
-    const allowance = await usdcContract.allowance(userAddress, config.router);
-
-    if (BigInt(allowance) < amountInWei) {
-      console.log("Approving USDC...");
-      const approveTx = await usdcContract.approve(config.router, amountInWei);
-      await approveTx.wait(); // Must wait for approval to mine before swap
+    if (allowance < amountInWei) {
+      // MetaMask will pop up for approval transaction
+      const approveTx = await erc20.approve(config.router, ethers.MaxUint256);
+      await approveTx.wait(); // Wait for approval to confirm
     }
+
+    // MetaMask will pop up for swap transaction
+    tx = await router.exactInputSingle({
+      tokenIn: tokenIn.address,
+      tokenOut: tokenOut.address,
+      fee: 3000,
+      recipient: address,
+      deadline,
+      amountIn: amountInWei,
+      amountOutMinimum: amountOutMin,
+      sqrtPriceLimitX96: 0,
+    });
   }
 
-  // Get Market Quote
-  const amountToQuote = isEthIn ? amountInOptions.value : amountInOptions.amountIn;
-  let amountsOut;
-  try {
-    amountsOut = await router.getAmountsOut(amountToQuote, path);
-  } catch (err) {
-    throw new Error("Unable to fetch market quote. Ensure there is enough liquidity.");
-  }
+  await tx.wait(); // Wait for confirmation
 
-  // 1% Slippage Guard
-  const slippageMultiplier = 99n;
-  const amountOutMin = (amountsOut[1] * slippageMultiplier) / 100n;
-  const deadline = Math.floor(Date.now() / 1000) + 60 * 10; // 10 Min
+  const explorerBase = chainId === 1
+    ? "https://etherscan.io/tx/"
+    : "https://sepolia.etherscan.io/tx/";
 
-  // Execute Tx & Gas Estimates
-  let tx;
-  if (isEthIn) {
-    // ETH -> Tokens
-    const gasEstimate = await router.swapExactETHForTokens.estimateGas(
-      amountOutMin,
-      path,
-      userAddress,
-      deadline,
-      { value: amountInOptions.value }
-    );
-
-    // Execute Adding 20% to the exact gas estimate for safety margin
-    tx = await router.swapExactETHForTokens(
-      amountOutMin,
-      path,
-      userAddress,
-      deadline,
-      { value: amountInOptions.value, gasLimit: (gasEstimate * 120n) / 100n }
-    );
-  } else {
-    // Tokens -> ETH
-    const gasEstimate = await router.swapExactTokensForETH.estimateGas(
-      amountInOptions.amountIn,
-      amountOutMin,
-      path,
-      userAddress,
-      deadline
-    );
-
-    // Execute Adding 20% to the exact gas estimate for safety margin
-    tx = await router.swapExactTokensForETH(
-      amountInOptions.amountIn,
-      amountOutMin,
-      path,
-      userAddress,
-      deadline,
-      { gasLimit: (gasEstimate * 120n) / 100n }
-    );
-  }
-
-  return tx;
+  return {
+    txHash: tx.hash,
+    explorerUrl: explorerBase + tx.hash,
+    isTestnet: chainId !== 1,
+  };
 }

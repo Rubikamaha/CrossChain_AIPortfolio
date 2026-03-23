@@ -13,16 +13,14 @@ import RebalancePage from "./pages/RebalancePage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
+import { PortfolioProvider, usePortfolioContext } from "@/contexts/PortfolioContext";
 import { Web3Chatbot } from "./components/ChatBot/Web3Chatbot";
 import { Navbar } from "./components/Navbar";
-import { useWallet } from "./hooks/useWallet";
-import { usePortfolioData } from "./hooks/usePortfolioData";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  const { isConnected, account, connect, disconnect } = useWallet();
-  const { mode } = usePortfolioData();
+  const { isConnected, account, connect, disconnect, mode } = usePortfolioContext();
 
   return (
     <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
@@ -50,12 +48,14 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <NetworkModeProvider>
       <ProfileProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <Web3Chatbot />
-          <AppContent />
-        </TooltipProvider>
+        <PortfolioProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <Web3Chatbot />
+            <AppContent />
+          </TooltipProvider>
+        </PortfolioProvider>
       </ProfileProvider>
     </NetworkModeProvider>
   </QueryClientProvider>
