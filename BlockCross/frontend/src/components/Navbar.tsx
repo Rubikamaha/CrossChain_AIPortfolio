@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { navItems } from '@/data/mockData';
-import { Wallet, User, Menu, X, Zap } from 'lucide-react';
+import { Wallet, User, Menu, X, Zap, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface NavbarProps {
@@ -48,9 +48,8 @@ export function Navbar({ isConnected, account, onConnect, onDisconnect, mode = '
           {/* Right side */}
           <div className="flex items-center gap-3">
             {/* Mode Indicator */}
-            <div className={`hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${
-              mode === 'DEMO' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-green-500/10 border-green-500/20 text-green-500'
-            }`}>
+            <div className={`hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${mode === 'DEMO' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-green-500/10 border-green-500/20 text-green-500'
+              }`}>
               {mode === 'DEMO' ? 'Demo Mode' : 'Live Mode'}
             </div>
 
@@ -65,6 +64,11 @@ export function Navbar({ isConnected, account, onConnect, onDisconnect, mode = '
             {/* Connect/User Button */}
             {isConnected ? (
               <div className="flex items-center gap-2">
+                <Link to="/settings">
+                  <Button variant="ghost" size="sm" className="p-2">
+                    <Settings className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
+                  </Button>
+                </Link>
                 <Link to="/profile">
                   <Button variant="glass" size="sm" className="gap-2">
                     <User className="w-4 h-4" />

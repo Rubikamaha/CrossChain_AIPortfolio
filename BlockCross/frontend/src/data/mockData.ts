@@ -58,7 +58,6 @@ export const navItems = [
   { name: 'Dashboard', href: '/', active: true },
   { name: 'Insights', href: '/insights', active: false },
   { name: 'Rebalance', href: '/rebalance', active: false },
-  { name: 'Pro', href: '/pro', active: false },
   { name: 'Swap', href: '/transactions', active: false },
   { name: 'Profile', href: '/profile', active: false },
 ];

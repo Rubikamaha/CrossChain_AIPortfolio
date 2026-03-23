@@ -7,10 +7,10 @@ import { NetworkModeProvider } from "@/contexts/NetworkModeContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import Index from "./pages/Index";
 import Profile from "./pages/Profile";
-import InsightsPage from "./pages/InsightsPage";
+import InsightsPage from "./pages/AIInsightsPage";
 import AISwapPage from "./pages/AISwapPage";
 import RebalancePage from "./pages/RebalancePage";
-import ProDashboard from "./pages/ProDashboard";
+import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 import { Web3Chatbot } from "./components/ChatBot/Web3Chatbot";
@@ -39,7 +39,7 @@ const AppContent = () => {
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/transactions" element={<AISwapPage />} />
         <Route path="/rebalance" element={<RebalancePage />} />
-        <Route path="/pro" element={<ProDashboard />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

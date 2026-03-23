@@ -1,261 +1,167 @@
-import { useState, useEffect } from 'react';
-import { usePortfolioData } from '@/hooks/usePortfolioData';
-import { rebalanceService } from '@/services/rebalanceService';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { Sparkles, AlertTriangle, RefreshCw, Loader2, ShieldCheck, ArrowRightLeft } from 'lucide-react';
-import { useWallet } from '@/hooks/useWallet';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-
-const COLORS = ['#627EEA', '#2775CA', '#8247E5', '#F7931A'];
+import { useState, useEffect } from "react";
+import { usePortfolioData } from "@/hooks/usePortfolioData";
+import { useWallet } from "@/hooks/useWallet";
+import { rebalanceService, AssetInput, RebalanceResult } from "@/services/rebalanceService";
+import { useSettings } from "@/hooks/useSettings";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  ArrowRight, RefreshCw, AlertTriangle, CheckCircle2, 
+  TrendingUp, PieChart, Shield, Zap, Info, Loader2, Sparkles, ShieldCheck, ArrowRightLeft, Wallet 
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function RebalancePage() {
-    const { isConnected } = useWallet();
-    const { data: portfolioData, mode, isLoading } = usePortfolioData();
-    const { toast } = useToast();
+  const { isConnected } = useWallet();
+  const { data: portfolioData, mode, isLoading } = usePortfolioData();
+  const { settings } = useSettings();
+  const { toast } = useToast();
 
-    // Target profiles
-    const PROFILES = {
-        CONSERVATIVE: { ETH: 30, USDC: 70 },
-        BALANCED: { ETH: 50, USDC: 50 },
-        AGGRESSIVE: { ETH: 70, USDC: 30 }
-    };
+  const [metrics, setMetrics] = useState<any>(null);
 
-    const [selectedProfile, setSelectedProfile] = useState<keyof typeof PROFILES>('BALANCED');
-    const [rebalancePlan, setRebalancePlan] = useState<any>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
+  useEffect(() => {
+    if (portfolioData) {
+      // MASTER PROMPT LOGIC
+      const total_value = portfolioData.totalValue;
+      const eth_value = portfolioData.eth * portfolioData.ethPrice;
+      const target_eth_percentage = 50;
+      const current_eth_percentage = total_value > 0 ? (eth_value / total_value) * 100 : 0;
+      const drift = current_eth_percentage - target_eth_percentage;
+      
+      let action = "HOLD";
+      if (drift > 10) action = "SELL ETH";
+      if (drift < -10) action = "BUY ETH";
 
-    const calculateDrift = () => {
-        if (!portfolioData || !portfolioData.assets) return 0;
-        const target = PROFILES[selectedProfile];
-        const ethAsset = portfolioData.assets.find(a => a.symbol === 'ETH');
-        const currentEthAlloc = ethAsset ? ethAsset.allocation : 0;
-        const drift = Math.abs(currentEthAlloc - target.ETH);
-        return drift;
-    };
+      const value_to_adjust = (drift / 100) * total_value;
+      const eth_amount = value_to_adjust / portfolioData.ethPrice;
+      const health = 100 - Math.abs(drift);
 
-    const drift = calculateDrift();
-    const needsRebalance = drift > 10;
-
-    const handleAnalyze = async () => {
-        if (!portfolioData) return;
-        setIsAnalyzing(true);
-        try {
-            const balances: Record<string, number> = {};
-            const prices: Record<string, number> = {};
-            portfolioData.assets.forEach(a => {
-                balances[a.symbol] = a.balance;
-                prices[a.symbol] = a.price;
-            });
-
-            const plan = rebalanceService.calculatePlan(balances, prices, PROFILES[selectedProfile]);
-            setRebalancePlan(plan);
-        } catch (error) {
-            console.error("Analysis failed:", error);
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
-    useEffect(() => {
-        if (portfolioData && !rebalancePlan) {
-            handleAnalyze();
-        }
-    }, [portfolioData, selectedProfile]);
-
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
+      setMetrics({
+        mode,
+        current_eth_percentage,
+        target_eth_percentage,
+        drift,
+        health,
+        action,
+        eth_amount: Math.abs(eth_amount),
+        value_to_adjust: Math.abs(value_to_adjust),
+        total_value
+      });
     }
+  }, [portfolioData]);
 
+  if (isLoading) {
     return (
-        <div className="min-h-screen py-10 pb-20 px-4 relative pt-16">
-            {/* Mode Banner */}
-            <div className={`absolute top-0 left-0 right-0 py-2 text-center border-b mb-4 z-10 font-bold flex justify-center items-center gap-2 ${
-                mode === 'DEMO' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-green-500/10 border-green-500/20 text-green-500'
-            }`}>
-                {mode === 'DEMO' ? (
-                    <>
-                        <AlertTriangle className="w-4 h-4" />
-                        <span className="text-sm">Demo Mode Active – Connect your wallet to see live blockchain data.</span>
-                    </>
-                ) : (
-                    <>
-                        <Sparkles className="w-4 h-4" />
-                        <span className="text-sm">Live Mode Active – Real-time blockchain data loaded.</span>
-                    </>
-                )}
-            </div>
-
-            <div className={`max-w-7xl mx-auto ${mode !== 'LIVE' ? 'pt-8' : ''}`}>
-                <div className="mb-8 pl-1">
-                    <h1 className="text-3xl font-bold font-heading flex items-center gap-3 mb-2">
-                        <RefreshCw className="w-8 h-8 text-accent" />
-                        Smart Rebalance
-                    </h1>
-                    <p className="text-muted-foreground">AI-driven portfolio optimization based on your target allocation profile.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="glass-card p-6 border-l-4 border-l-accent">
-                        <span className="text-muted-foreground text-sm uppercase tracking-wider">Health Score</span>
-                        <div className="text-4xl font-bold mt-2 flex items-baseline gap-2">
-                            {portfolioData?.riskScore || 50}
-                            <span className="text-sm font-normal text-muted-foreground">/ 100</span>
-                        </div>
-                    </div>
-                    <div className="glass-card p-6 border-l-4 border-l-warning">
-                        <span className="text-muted-foreground text-sm uppercase tracking-wider">Allocation Drift</span>
-                        <div className="text-4xl font-bold mt-2 flex items-baseline gap-2">
-                            {drift.toFixed(1)}%
-                        </div>
-                    </div>
-                    <div className="glass-card p-6 border-l-4 border-l-success">
-                        <span className="text-muted-foreground text-sm uppercase tracking-wider">Status</span>
-                        <div className="text-xl font-bold mt-2 flex items-center gap-2">
-                            {needsRebalance ? (
-                                <>
-                                    <AlertTriangle className="w-6 h-6 text-warning" />
-                                    Rebalance Needed
-                                </>
-                            ) : (
-                                <>
-                                    <ShieldCheck className="w-6 h-6 text-success" />
-                                    Optimized
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="glass-card p-6 mb-8">
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-accent" />
-                        Target Profile Selection
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {Object.keys(PROFILES).map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => setSelectedProfile(p as any)}
-                                className={`p-4 rounded-xl border transition-all ${
-                                    selectedProfile === p 
-                                    ? 'bg-accent/10 border-accent text-accent' 
-                                    : 'bg-secondary/20 border-white/5 text-muted-foreground hover:bg-secondary/40'
-                                }`}
-                            >
-                                <div className="font-bold uppercase mb-1">{p}</div>
-                                <div className="text-xs">
-                                    {PROFILES[p as keyof typeof PROFILES].ETH}% ETH / {PROFILES[p as keyof typeof PROFILES].USDC}% USDC
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {rebalancePlan && (
-                    <div className="space-y-8 animate-in fade-in duration-500">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="glass-card p-6">
-                                <h3 className="text-lg font-bold mb-4 text-center">Current Allocation</h3>
-                                <div className="h-[250px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={portfolioData.assets}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="allocation"
-                                                nameKey="symbol"
-                                            >
-                                                {portfolioData.assets.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', borderRadius: '8px', border: 'none' }} />
-                                            <Legend />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                            <div className="glass-card p-6">
-                                <h3 className="text-lg font-bold mb-4 text-center text-success">Target Allocation</h3>
-                                <div className="h-[250px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={Object.entries(PROFILES[selectedProfile]).map(([name, value]) => ({ name, value }))}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                                nameKey="name"
-                                            >
-                                                {Object.entries(PROFILES[selectedProfile]).map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', borderRadius: '8px', border: 'none' }} />
-                                            <Legend />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="glass-card p-8">
-                            <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                                <ArrowRightLeft className="w-6 h-6 text-primary" />
-                                Optimal Rebalance Plan
-                            </h3>
-                            
-                            {rebalancePlan.requiredSwaps.length > 0 ? (
-                                <div className="space-y-4">
-                                    {rebalancePlan.requiredSwaps.map((swap: any, idx: number) => (
-                                        <div key={idx} className="p-6 rounded-xl bg-secondary/10 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                            <div>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <span className={`px-3 py-1 rounded text-xs font-bold uppercase ${swap.action === 'BUY' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
-                                                        {swap.action}
-                                                    </span>
-                                                    <span className="font-bold text-lg">{swap.asset}</span>
-                                                </div>
-                                                <p className="text-muted-foreground text-sm">Amount: {swap.amountToken.toFixed(4)} {swap.asset} (~${swap.amountUsd.toFixed(2)})</p>
-                                            </div>
-                                            <Button 
-                                                variant="outline" 
-                                                className="border-primary/50 text-primary hover:bg-primary/10"
-                                                onClick={() => {
-                                                    toast({
-                                                        title: mode === 'DEMO' ? "Simulated swap" : "Transaction started",
-                                                        description: `Executing ${swap.action} for ${swap.asset}.`
-                                                    });
-                                                }}
-                                            >
-                                                Execute {swap.action}
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <ShieldCheck className="w-12 h-12 text-success mx-auto mb-4" />
-                                    <h4 className="text-xl font-bold">Everything is in alignment</h4>
-                                    <p className="text-muted-foreground mt-2">Your portfolio drift is below the 10% threshold.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
     );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="min-h-screen py-12 flex items-center justify-center bg-background text-foreground font-bold">
+        <p>NO PORTFOLIO DATA FOUND</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen py-10 pb-20 px-4 relative pt-16 bg-background text-foreground">
+       {/* Mode Indicator */}
+       <div className={`absolute top-0 left-0 right-0 py-2 text-center border-b font-bold flex justify-center items-center gap-2 ${mode === 'DEMO' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
+        {mode === 'DEMO' ? <Info className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+        <span className="text-sm uppercase tracking-widest font-bold">{mode === 'DEMO' ? 'Demo Mode — Mock Data Active' : 'Live Mode — Real Data Active'}</span>
+      </div>
+
+      <div className="max-w-6xl mx-auto pt-10">
+        <div className="mb-10 text-center">
+          <h1 className="text-4xl font-bold flex items-center justify-center gap-4 mb-3">
+            <RefreshCw className="w-12 h-12 text-blue-400" />
+            Smart Rebalance
+          </h1>
+          <p className="text-muted-foreground text-lg">Align your portfolio with professional 50/50 Ethereum/USDC strategy.</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="glass-card p-8 rounded-3xl relative overflow-hidden group">
+               <h3 className="text-xl font-bold mb-6 flex items-center gap-2 uppercase">
+                  <PieChart className="w-6 h-6 text-blue-400" />
+                  Allocation Status
+               </h3>
+               
+               <div className="grid grid-cols-2 gap-8 py-6">
+                  <div className="text-center p-6 bg-secondary/50 rounded-2xl border border-border">
+                    <p className="text-xs font-bold text-muted-foreground tracking-widest mb-1 uppercase">Current ETH</p>
+                    <p className="text-4xl font-bold">{metrics.current_eth_percentage.toFixed(1)}%</p>
+                  </div>
+                  <div className="text-center p-6 bg-primary/10 rounded-2xl border border-primary/20">
+                    <p className="text-xs font-bold text-primary tracking-widest mb-1 uppercase">Target ETH</p>
+                    <p className="text-4xl font-bold">{metrics.target_eth_percentage}%</p>
+                  </div>
+               </div>
+
+               <div className="mt-6 flex items-center gap-4 p-4 bg-secondary/30 rounded-xl border border-border/50 text-sm">
+                  <TrendingUp className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-muted-foreground font-medium">Drift detected: <span className="text-foreground font-bold">{metrics.drift.toFixed(2)}%</span></span>
+               </div>
+            </div>
+
+            <div className="glass-card p-8 rounded-3xl relative overflow-hidden group">
+               <h3 className="text-xl font-bold mb-6 flex items-center gap-2 uppercase">
+                  <ArrowRightLeft className="w-6 h-6 text-purple-400" />
+                  Proposed Action
+               </h3>
+
+               <div className="flex items-center justify-between p-8 bg-secondary/20 rounded-2xl border border-border">
+                  <div>
+                    <p className="text-xs font-bold text-muted-foreground tracking-widest mb-1 uppercase">Recommended Move</p>
+                    <p className={`text-4xl font-bold ${metrics.action === 'HOLD' ? 'text-blue-400' : 'text-purple-400'}`}>{metrics.action}</p>
+                  </div>
+                  {metrics.action !== 'HOLD' && (
+                    <div className="text-right">
+                       <p className="text-xs font-bold text-muted-foreground tracking-widest mb-1 uppercase">Amount to {metrics.action.split(' ')[0]}</p>
+                       <p className="text-4xl font-bold">{metrics.eth_amount.toFixed(4)} ETH</p>
+                       <p className="text-sm text-muted-foreground font-bold">≈ ${metrics.value_to_adjust.toFixed(2)} USDC</p>
+                    </div>
+                  )}
+               </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+             <div className="glass-card p-8 rounded-3xl relative overflow-hidden group h-full flex flex-col justify-between">
+                <div>
+                   <h3 className="text-xl font-bold mb-6 flex items-center gap-2 uppercase">
+                      <ShieldCheck className="w-6 h-6 text-green-400" />
+                      Strategy Health
+                   </h3>
+
+                   <div className="flex flex-col items-center justify-center py-10">
+                      <div className="text-7xl font-bold">{metrics.health.toFixed(0)}</div>
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-2">HEALTH SCORE / 100</div>
+                      
+                      <div className="w-full mt-10 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                        <div 
+                          className={`h-full transition-all duration-1000 ${metrics.health > 70 ? 'bg-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-amber-500'}`} 
+                          style={{ width: `${metrics.health}%` }} 
+                        />
+                      </div>
+                   </div>
+                </div>
+
+                 <Button 
+                     variant="hero" 
+                     className="w-full py-8 text-xl font-semibold" 
+                     disabled={metrics.action === 'HOLD'}
+                     onClick={() => toast({ title: "Smart Rebalance", description: "This feature initiates a swap interaction in your wallet." })}
+                 >
+                   {metrics.action === 'HOLD' ? 'Portfolio Stable' : `Execute ${metrics.action}`}
+                 </Button>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -16,7 +16,7 @@ export const priceService = {
    */
   async getPrices(): Promise<Record<string, number>> {
     const now = Date.now();
-    
+
     if (cache && (now - cache.timestamp < CACHE_DURATION)) {
       return cache.data;
     }
@@ -25,21 +25,21 @@ export const priceService = {
       const response = await fetch(
         "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,usd-coin&vs_currencies=usd"
       );
-      
+
       if (!response.ok) throw new Error("CoinGecko API failure");
-      
+
       const data = await response.json();
-      
+
       const result = {
         ETH: data.ethereum?.usd || 0,
         USDC: data["usd-coin"]?.usd || 1
       };
-      
+
       cache = {
         data: result,
         timestamp: now
       };
-      
+
       return result;
     } catch (error) {
       console.error("Price fetch error:", error);

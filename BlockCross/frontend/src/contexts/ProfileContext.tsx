@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export type RiskPersonality = 'Conservative' | 'Balanced' | 'Aggressive';
 export type PreferredCurrency = 'USD' | 'INR';
@@ -61,39 +61,39 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         localStorage.setItem('user_profile', JSON.stringify(state));
     }, [state]);
 
-    const setRiskPersonality = (risk: RiskPersonality) => setState(prev => ({ ...prev, riskPersonality: risk }));
-    const setPreferredCurrency = (currency: PreferredCurrency) => setState(prev => ({ ...prev, preferredCurrency: currency }));
-    const setLearningMode = (mode: LearningMode) => setState(prev => ({ ...prev, learningMode: mode }));
+    const setRiskPersonality = useCallback((risk: RiskPersonality) => setState(prev => ({ ...prev, riskPersonality: risk })), []);
+    const setPreferredCurrency = useCallback((currency: PreferredCurrency) => setState(prev => ({ ...prev, preferredCurrency: currency })), []);
+    const setLearningMode = useCallback((mode: LearningMode) => setState(prev => ({ ...prev, learningMode: mode })), []);
 
-    const toggleNotification = (key: keyof ProfileState['notifications']) =>
+    const toggleNotification = useCallback((key: keyof ProfileState['notifications']) =>
         setState(prev => ({
             ...prev,
             notifications: { ...prev.notifications, [key]: !prev.notifications[key] }
-        }));
+        })), []);
 
-    const updateSyncTime = () =>
+    const updateSyncTime = useCallback(() =>
         setState(prev => ({
             ...prev,
             activity: { ...prev.activity, lastSyncTime: new Date().toISOString() }
-        }));
+        })), []);
 
-    const updateAIInsightTime = () =>
+    const updateAIInsightTime = useCallback(() =>
         setState(prev => ({
             ...prev,
             activity: { ...prev.activity, lastAIInsightTime: new Date().toISOString() }
-        }));
+        })), []);
 
-    const incrementRebalanceCount = () =>
+    const incrementRebalanceCount = useCallback(() =>
         setState(prev => ({
             ...prev,
             activity: { ...prev.activity, rebalanceCount: prev.activity.rebalanceCount + 1 }
-        }));
+        })), []);
 
-    const updateHealthScore = (score: number, explanation: string) =>
+    const updateHealthScore = useCallback((score: number, explanation: string) =>
         setState(prev => ({
             ...prev,
             activity: { ...prev.activity, healthScore: score, healthExplanation: explanation }
-        }));
+        })), []);
 
     return (
         <ProfileContext.Provider value={{
